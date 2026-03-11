@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>退傭試算 (全相容版)</title>
+<title>退傭試算 (自動修復版)</title>
 <style>
   :root { --bg: #0a0a0a; --gold: #c9a84c; --text: #f0f0f0; }
   body { background: var(--bg); color: var(--text); font-family: sans-serif; max-width: 430px; margin: 0 auto; padding: 10px; }
@@ -17,20 +17,20 @@
 </head>
 <body>
 <div class="header">
-  <b>♠ 退傭試算 (全相容版)</b>
+  <b>♠ 退傭試算 (AI 自動兼容版)</b>
   <div>
     <button onclick="setKey()" style="background:none; border:none; color:#555; margin-right:10px">⚙️</button>
     <button class="btn" onclick="document.getElementById('f').click()">📷 導入圖片</button>
   </div>
 </div>
 <input type="file" id="f" hidden accept="image/*" onchange="run(event)">
-<div id="loader" style="display:none"><div class="spinner"></div><div style="text-align:center">正在嘗試多種連線方式...</div></div>
+<div id="loader" style="display:none"><div class="spinner"></div><div style="text-align:center" id="loadText">正在尋找可用模型...</div></div>
 <div id="out"></div>
 
 <script>
 function setKey() { 
   const k = prompt("請貼上 API Key:", localStorage.getItem('g_key')||""); 
-  if(k) { localStorage.setItem('g_key', k.trim()); location.reload(); }
+  if(k) { localStorage.setItem('g_key', k.trim()); alert("金鑰儲存成功，請重新上傳圖片！"); }
 }
 
 async function run(e) {
@@ -38,44 +38,67 @@ async function run(e) {
   const key = localStorage.getItem('g_key');
   if(!key) { setKey(); return; }
   
-  document.getElementById('loader').style.display = 'block';
-  document.getElementById('out').innerHTML = '';
+  const loader = document.getElementById('loader');
+  const loadText = document.getElementById('loadText');
+  const out = document.getElementById('out');
+  loader.style.display = 'block';
+  out.innerHTML = '';
 
   const reader = new FileReader();
   reader.onload = async (ev) => {
     const base64 = ev.target.result.split(',')[1];
-    // 這次嘗試 v1beta 搭配最新的模型路徑寫法
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`;
     
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: "這是一張撲克報表。請提取玩家ID、暱稱和服務費(Rake)。請僅以 JSON 回傳，格式：{\"players\":[{\"id\":\"\",\"nick\":\"\",\"rake\":0}]}" },
-                    { inline_data: { mime_type: file.type, data: base64 } }]
-          }]
-        })
-      });
+    // 準備嘗試的模型清單
+    const models = [
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+      "gemini-1.0-pro-vision-latest"
+    ];
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
+    let lastError = "";
 
-      const text = data.candidates[0].content.parts[0].text;
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      const ps = JSON.parse(jsonMatch[0]).players;
-      
-      let h = '<table><tr><th>玩家</th><th style="text-align:right">服務費</th></tr>';
-      ps.forEach(p => {
-        h += `<tr><td>${p.nick}<br><small style="color:#555">${p.id}</small></td><td style="text-align:right; color:var(--gold)">$${p.rake}</td></tr>`;
-      });
-      document.getElementById('out').innerHTML = h + '</table>';
-    } catch (err) {
-      alert("連線失敗：" + err.message + "\n\n建議檢查：\n1. Google AI Studio 是否有按 Create API Key\n2. 稍等 5 分鐘後再試");
-    } finally {
-      document.getElementById('loader').style.display = 'none';
+    for (const model of models) {
+      loadText.innerText = `正在嘗試模型: ${model}...`;
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: "這是一張撲克報表。請提取玩家ID、暱稱和服務費(Rake)。請僅以 JSON 回傳，格式：{\"players\":[{\"id\":\"\",\"nick\":\"\",\"rake\":0}]}" },
+                { inline_data: { mime_type: file.type, data: base64 } }
+              ]
+            }]
+          })
+        });
+
+        const data = await res.json();
+        if (data.error) {
+          lastError = data.error.message;
+          continue; // 嘗試下一個模型
+        }
+
+        const text = data.candidates[0].content.parts[0].text;
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        const ps = JSON.parse(jsonMatch[0]).players;
+        
+        let h = '<table><tr><th>玩家</th><th style="text-align:right">服務費</th></tr>';
+        ps.forEach(p => {
+          h += `<tr><td>${p.nick}<br><small style="color:#555">${p.id}</small></td><td style="text-align:right; color:var(--gold)">$${p.rake}</td></tr>`;
+        });
+        out.innerHTML = h + '</table>';
+        loader.style.display = 'none';
+        return; // 成功後跳出迴圈
+
+      } catch (err) {
+        lastError = err.message;
+      }
     }
+
+    // 如果所有模型都失敗
+    alert("所有模型連線失敗。\n最後一個錯誤：" + lastError + "\n\n提示：請確認您的 Key 是否在 AI Studio 啟用了 Gemini API。");
+    loader.style.display = 'none';
   };
   reader.readAsDataURL(file);
 }
