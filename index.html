@@ -1,1 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退傭試算 (全相容版)</title>
+<style>
+  :root { --bg: #0a0a0a; --gold: #c9a84c; --text: #f0f0f0; }
+  body { background: var(--bg); color: var(--text); font-family: sans-serif; max-width: 430px; margin: 0 auto; padding: 10px; }
+  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
+  .btn { background: #1a1a1a; border: 1px solid var(--gold); color: var(--gold); padding: 8px 15px; border-radius: 20px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  td { padding: 12px 5px; border-bottom: 1px solid #222; }
+  .spinner { border: 3px solid #333; border-top: 3px solid var(--gold); border-radius: 50%; width: 25px; height: 25px; animation: spin 1s linear infinite; margin: 20px auto; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="header">
+  <b>♠ 退傭試算 (全相容版)</b>
+  <div>
+    <button onclick="setKey()" style="background:none; border:none; color:#555; margin-right:10px">⚙️</button>
+    <button class="btn" onclick="document.getElementById('f').click()">📷 導入圖片</button>
+  </div>
+</div>
+<input type="file" id="f" hidden accept="image/*" onchange="run(event)">
+<div id="loader" style="display:none"><div class="spinner"></div><div style="text-align:center">正在嘗試多種連線方式...</div></div>
+<div id="out"></div>
 
+<script>
+function setKey() { 
+  const k = prompt("請貼上 API Key:", localStorage.getItem('g_key')||""); 
+  if(k) { localStorage.setItem('g_key', k.trim()); location.reload(); }
+}
+
+async function run(e) {
+  const file = e.target.files[0]; 
+  const key = localStorage.getItem('g_key');
+  if(!key) { setKey(); return; }
+  
+  document.getElementById('loader').style.display = 'block';
+  document.getElementById('out').innerHTML = '';
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    // 這次嘗試 v1beta 搭配最新的模型路徑寫法
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`;
+    
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: "這是一張撲克報表。請提取玩家ID、暱稱和服務費(Rake)。請僅以 JSON 回傳，格式：{\"players\":[{\"id\":\"\",\"nick\":\"\",\"rake\":0}]}" },
+                    { inline_data: { mime_type: file.type, data: base64 } }]
+          }]
+        })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const text = data.candidates[0].content.parts[0].text;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const ps = JSON.parse(jsonMatch[0]).players;
+      
+      let h = '<table><tr><th>玩家</th><th style="text-align:right">服務費</th></tr>';
+      ps.forEach(p => {
+        h += `<tr><td>${p.nick}<br><small style="color:#555">${p.id}</small></td><td style="text-align:right; color:var(--gold)">$${p.rake}</td></tr>`;
+      });
+      document.getElementById('out').innerHTML = h + '</table>';
+    } catch (err) {
+      alert("連線失敗：" + err.message + "\n\n建議檢查：\n1. Google AI Studio 是否有按 Create API Key\n2. 稍等 5 分鐘後再試");
+    } finally {
+      document.getElementById('loader').style.display = 'none';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+</script>
+</body>
+</html>
