@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>退傭試算 | 魚多多TiNY POKER</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg2: #111111;
+    --bg3: #1a1a1a;
+    --card: #141414;
+    --border: #2a2a2a;
+    --gold: #c9a84c;
+    --gold2: #f0d080;
+    --gold-dim: #8a6f2e;
+    --red: #e03030;
+    --green: #2ecc71;
+    --orange: #e87c2a;
+    --text: #f0f0f0;
+    --text2: #a0a0a0;
+    --text3: #555;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    max-width: 430px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(160deg, #1c1100 0%, #0a0a0a 60%);
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top:0; z-index:50;
+  }
+  .header-row { display:flex; justify-content:space-between; align-items:center; }
+  .brand { font-family:'Playfair Display',serif; font-size:20px; color:var(--gold); letter-spacing:2px; }
+  .period { font-size:10px; color:var(--text3); margin-top:3px; }
+  .btn-import-header {
+    display:flex; align-items:center; gap:6px;
+    background: rgba(201,168,76,0.12);
+    border: 1px solid var(--gold-dim);
+    border-radius: 20px;
+    padding: 7px 13px;
+    font-size:12px; font-weight:600;
+    color: var(--gold);
+    cursor:pointer;
+    font-family:'Noto Sans TC',sans-serif;
+    white-space:nowrap;
+    transition: all 0.2s;
+  }
+  .btn-import-header:active { background: rgba(201,168,76,0.22); }
+
+  /* Summary strip */
+  .summary-strip {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px; background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .strip-item { background: var(--bg2); padding: 10px 14px; text-align: center; }
+  .strip-label { font-size:9px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+  .strip-val { font-size:14px; font-weight:700; }
+  .strip-val.gold { color:var(--gold); }
+  .strip-val.green { color:var(--green); }
+
+  /* Global rate */
+  .global-rate-bar {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 12px 18px; display:flex; align-items:center; gap:12px;
+  }
+  .global-label { font-size:12px; color:var(--text2); white-space:nowrap; }
+  .rate-input-wrap {
+    display:flex; align-items:center;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; gap:4px; flex:1;
+  }
+  .rate-input-wrap input {
+    background:none; border:none; outline:none;
+    color:var(--gold2); font-size:16px; font-weight:700;
+    width:50px; text-align:center; font-family:'Noto Sans TC',sans-serif;
+  }
+  .pct-label { color:var(--gold-dim); font-size:14px; font-weight:700; }
+  .btn-apply {
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    border:none; border-radius:8px; padding: 8px 14px;
+    color:#111; font-size:12px; font-weight:700;
+    font-family:'Noto Sans TC',sans-serif; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  .btn-apply:active { opacity:.8; }
+
+  /* Section headers */
+  .section-header {
+    background: var(--bg3); padding: 10px 18px;
+    font-size:10px; color:var(--text3); letter-spacing:2px; text-transform:uppercase;
+    border-bottom: 1px solid var(--border);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .section-count { background: var(--border); border-radius:10px; padding:2px 8px; font-size:10px; color:var(--text2); }
+
+  /* Player rows */
+  .player-row {
+    border-bottom: 1px solid #1a1a1a; padding: 12px 18px;
+    display:flex; align-items:center; gap:10px; transition: background 0.15s;
+  }
+  .player-row:active { background: #161616; }
+  .player-nick { flex:1; min-width:0; }
+  .nick-name { font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nick-id { font-size:10px; color:var(--text3); margin-top:1px; }
+  .player-rake { text-align:right; flex-shrink:0; width:80px; }
+  .rake-label { font-size:9px; color:var(--text3); margin-bottom:2px; }
+  .rake-val { font-size:12px; color:var(--text2); }
+  .player-rate-wrap {
+    display:flex; align-items:center; background: var(--bg3);
+    border: 1px solid var(--border); border-radius:8px; padding:5px 8px; gap:2px; width:64px; flex-shrink:0;
+  }
+  .player-rate-wrap input {
+    background:none; border:none; outline:none; color:var(--gold2);
+    font-size:14px; font-weight:700; width:34px; text-align:center; font-family:'Noto Sans TC',sans-serif;
+  }
+  .rate-pct { color:var(--gold-dim); font-size:12px; }
+  .player-result { text-align:right; flex-shrink:0; width:72px; }
+  .result-val { font-size:14px; font-weight:700; color:var(--gold); }
+  .result-label { font-size:9px; color:var(--text3); margin-top:1px; }
+
+  /* Total bar */
+  .total-bar {
+    position:sticky; bottom:0;
+    background: linear-gradient(0deg, #111 80%, transparent);
+    padding: 16px 18px 24px; border-top: 1px solid var(--border);
+  }
+  .total-inner {
+    background: var(--card); border: 1px solid var(--gold-dim);
+    border-radius:14px; padding:16px 20px;
+    box-shadow: 0 0 20px rgba(201,168,76,0.15);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .total-label { font-size:12px; color:var(--text3); margin-bottom:4px; }
+  .total-val { font-size:26px; font-weight:700; color:var(--gold2); }
+  .total-count { font-size:11px; color:var(--text3); margin-top:2px; }
+  .total-right { text-align:right; }
+  .total-rake-label { font-size:10px; color:var(--text3); }
+  .total-rake-val { font-size:14px; color:var(--text2); font-weight:600; margin-top:2px; }
+
+  /* Import Modal */
+  .modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.88); z-index:300;
+    align-items:flex-end; justify-content:center;
+  }
+  .modal-overlay.show { display:flex; }
+  .modal {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:20px 20px 0 0; padding:20px 18px 32px;
+    width:100%; max-width:430px;
+    animation:slideUp 0.3s ease; max-height:90vh; overflow-y:auto;
+  }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .modal-handle { width:40px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px; }
+  .modal-title { font-family:'Playfair Display',serif; font-size:18px; color:var(--gold); margin-bottom:6px; text-align:center; }
+  .modal-sub { font-size:11px; color:var(--text3); text-align:center; margin-bottom:18px; line-height:1.6; }
+
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius:14px;
+    padding:30px 20px; text-align:center; cursor:pointer;
+    transition: all 0.2s; position:relative; overflow:hidden;
+  }
+  .upload-zone.has-file { border-color: var(--gold-dim); }
+  .upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; font-size:0; }
+  .upload-icon { font-size:36px; margin-bottom:10px; }
+  .upload-text { font-size:13px; color:var(--text2); margin-bottom:4px; }
+  .upload-hint { font-size:11px; color:var(--text3); }
+
+  .img-preview { width:100%; border-radius:10px; margin:12px 0; display:none; max-height:220px; object-fit:contain; background:#111; }
+  .img-preview.show { display:block; }
+
+  .analyzing-wrap { text-align:center; padding:20px 0; display:none; }
+  .analyzing-wrap.show { display:block; }
+  .spinner {
+    width:32px; height:32px; border-radius:50%;
+    border:3px solid var(--border); border-top-color:var(--gold);
+    animation:spin 0.8s linear infinite; margin:0 auto 12px;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .analyzing-text { font-size:13px; color:var(--text2); font-weight:600; }
+  .analyzing-step { font-size:11px; color:var(--text3); margin-top:6px; }
+
+  .result-preview {
+    background:var(--bg3); border:1px solid var(--border);
+    border-radius:12px; padding:14px; margin:12px 0; display:none;
+    max-height:200px; overflow-y:auto;
+  }
+  .result-preview.show { display:block; }
+  .result-preview-title { font-size:11px; color:var(--gold); margin-bottom:10px; letter-spacing:1px; text-transform:uppercase; }
+  .result-row {
+    font-size:11px; color:var(--text2); padding:5px 0;
+    border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center;
+  }
+  .result-row:last-child { border-bottom:none; }
+
+  .btn-confirm-import {
+    width:100%; padding:14px;
+    background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+    border:none; border-radius:12px; color:#111; font-size:14px; font-weight:700;
+    font-family:'Noto Sans TC',sans-serif; cursor:pointer; margin-top:8px; display:none;
+    box-shadow:0 4px 16px rgba(201,168,76,0.25);
+  }
+  .btn-confirm-import.show { display:block; }
+  .btn-cancel {
+    width:100%; padding:12px;
+    background:var(--bg3); border:1px solid var(--border);
+    border-radius:12px; color:var(--text2); font-size:13px; font-weight:600;
+    font-family:'Noto Sans TC',sans-serif; cursor:pointer; margin-top:8px;
+  }
+
+  /* Toast */
+  .toast {
+    position:fixed; top:80px; left:50%;
+    transform:translateX(-50%) translateY(-10px);
+    background:var(--green); color:#fff;
+    padding:10px 20px; border-radius:20px; font-size:12px; font-weight:600;
+    opacity:0; transition:all 0.25s; pointer-events:none; white-space:nowrap; z-index:999;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* Empty state */
+  .empty-state { text-align:center; padding:60px 30px; }
+  .empty-icon { font-size:52px; margin-bottom:14px; opacity:0.3; }
+  .empty-text { font-size:15px; color:var(--text2); margin-bottom:8px; font-weight:500; }
+  .empty-hint { font-size:12px; color:var(--text3); line-height:1.6; }
+
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+
+  /* ── Agent Filter Bar ── */
+  .filter-bar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .filter-bar.show { display: flex; }
+  .filter-label-row {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .filter-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+  .filter-clear {
+    font-size: 10px; color: var(--gold-dim); cursor: pointer;
+    background: none; border: none; font-family: 'Noto Sans TC', sans-serif;
+    padding: 2px 6px;
+  }
+  .filter-clear:active { opacity: .6; }
+  .filter-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .filter-chip {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11px; font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .filter-chip:active { opacity: .7; }
+  .filter-chip.active {
+    background: rgba(201,168,76,0.15);
+    border-color: var(--gold-dim);
+    color: var(--gold);
+    font-weight: 700;
+  }
+  .filter-chip.all {
+    border-color: var(--border);
+  }
+  .filter-chip.all.active {
+    background: rgba(201,168,76,0.1);
+    border-color: var(--gold-dim);
+    color: var(--gold);
+  }
+
+  /* filtered summary badge */
+  .filter-badge {
+    display: none;
+    background: rgba(201,168,76,0.12);
+    border: 1px solid var(--gold-dim);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 11px;
+    color: var(--gold);
+    margin: 10px 18px 0;
+    text-align: center;
+  }
+  .filter-badge.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div>
+      <div class="brand">♠ 退傭試算</div>
+      <div class="period" id="periodLabel">尚未載入資料</div>
+    </div>
+    <button class="btn-import-header" onclick="openImport()">📷 導入圖片</button>
+  </div>
+</div>
+
+<div class="summary-strip">
+  <div class="strip-item">
+    <div class="strip-label">總服務費</div>
+    <div class="strip-val gold" id="sumRake">—</div>
+  </div>
+  <div class="strip-item">
+    <div class="strip-label">總退傭</div>
+    <div class="strip-val green" id="sumPayout">—</div>
+  </div>
+  <div class="strip-item">
+    <div class="strip-label">玩家人數</div>
+    <div class="strip-val" id="sumCount">—</div>
+  </div>
+</div>
+
+<div class="global-rate-bar" id="rateBar" style="display:none">
+  <div class="global-label">統一退傭率</div>
+  <div class="rate-input-wrap">
+    <input type="number" id="globalRate" value="30" min="0" max="100">
+    <span class="pct-label">%</span>
+  </div>
+  <button class="btn-apply" onclick="applyGlobal()">套用全部</button>
+</div>
+
+<!-- Agent Filter Bar -->
+<div class="filter-bar" id="filterBar">
+  <div class="filter-label-row">
+    <span class="filter-label">🔍 依代理篩選</span>
+    <button class="filter-clear" onclick="clearFilter()">顯示全部</button>
+  </div>
+  <div class="filter-chips" id="filterChips"></div>
+</div>
+
+<div class="filter-badge" id="filterBadge"></div>
+
+<div id="playerContainer">
+  <div class="empty-state">
+    <div class="empty-icon">📷</div>
+    <div class="empty-text">點擊「導入圖片」開始</div>
+    <div class="empty-hint">上傳 Excel 截圖<br>AI 自動識別玩家資料與服務費</div>
+  </div>
+</div>
+
+<div class="total-bar" id="totalBar" style="display:none">
+  <div class="total-inner">
+    <div>
+      <div class="total-label">本期應付總退傭</div>
+      <div class="total-val" id="grandTotal">$0</div>
+      <div class="total-count" id="grandCount">0 位玩家</div>
+    </div>
+    <div class="total-right">
+      <div class="total-rake-label">總服務費</div>
+      <div class="total-rake-val" id="grandRake">$0</div>
+    </div>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">導入 Excel 截圖</div>
+    <div class="modal-sub">AI 自動識別玩家 ID、暱稱與服務費<br>支援魚多多 TiNY POKER 及類似平台報表</div>
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" accept="image/*" id="fileInput" onchange="handleFile(event)">
+      <div class="upload-icon">🖼️</div>
+      <div class="upload-text" id="uploadText">點擊選擇截圖</div>
+      <div class="upload-hint">支援 JPG、PNG、HEIC</div>
+    </div>
+
+    <img class="img-preview" id="imgPreview" src="" alt="preview">
+
+    <div class="analyzing-wrap" id="analyzingWrap">
+      <div class="spinner"></div>
+      <div class="analyzing-text">AI 正在分析截圖...</div>
+      <div class="analyzing-step" id="analyzingStep">讀取圖片資料中</div>
+    </div>
+
+    <div class="result-preview" id="resultPreview">
+      <div class="result-preview-title">▸ 識別結果預覽</div>
+      <div id="resultRows"></div>
+    </div>
+
+    <button class="btn-confirm-import" id="btnConfirm" onclick="confirmImport()">✓ 確認導入資料</button>
+    <button class="btn-cancel" onclick="closeImport()">取消</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let players = [];
+let rates = {};
+let parsedPlayers = [];
+let parsedPeriod = '';
+let activeAgent = null; // null = show all
+
+function fmt(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  return '$' + Number(n).toLocaleString('zh-TW', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+
+function calcRB(rake, rate) {
+  return Math.round(rake * (rate / 100) * 100) / 100;
+}
+
+// ── Modal ──
+function openImport() {
+  document.getElementById('importModal').classList.add('show');
+  resetModal();
+}
+
+function closeImport() {
+  document.getElementById('importModal').classList.remove('show');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('importModal')) closeImport();
+}
+
+function resetModal() {
+  document.getElementById('imgPreview').className = 'img-preview';
+  document.getElementById('analyzingWrap').className = 'analyzing-wrap';
+  document.getElementById('resultPreview').className = 'result-preview';
+  document.getElementById('btnConfirm').className = 'btn-confirm-import';
+  document.getElementById('uploadZone').className = 'upload-zone';
+  document.getElementById('uploadText').textContent = '點擊選擇截圖';
+  document.getElementById('fileInput').value = '';
+  parsedPlayers = [];
+}
+
+async function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  document.getElementById('uploadZone').className = 'upload-zone has-file';
+  document.getElementById('uploadText').textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const dataUrl = ev.target.result;
+    const base64 = dataUrl.split(',')[1];
+    const mtype = file.type || 'image/jpeg';
+
+    document.getElementById('imgPreview').src = dataUrl;
+    document.getElementById('imgPreview').className = 'img-preview show';
+    document.getElementById('analyzingWrap').className = 'analyzing-wrap show';
+    document.getElementById('resultPreview').className = 'result-preview';
+    document.getElementById('btnConfirm').className = 'btn-confirm-import';
+
+    await analyzeImage(base64, mtype);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeImage(base64Data, mediaType) {
+  const steps = ['讀取圖片資料中', '識別表格欄位', '提取玩家資料', '計算服務費', '整理分組資訊'];
+  let si = 0;
+  const stepEl = document.getElementById('analyzingStep');
+  const timer = setInterval(() => { si = (si+1) % steps.length; stepEl.textContent = steps[si]; }, 800);
+
+  const GEMINI_KEY = 'AIzaSyDFNmugXw6WPx-EJIEZQW7xeMh654EkUro';
+  const prompt = `這是一張撲克平台報表截圖。請仔細讀取表格資料，提取所有玩家資訊。
+
+請只回傳純 JSON，不要任何 markdown 或說明文字，格式：
+{
+  "period": "報表期間（如 2026/03/02-03/08）",
+  "players": [
+    {
+      "id": "玩家ID字串",
+      "nick": "玩家暱稱",
+      "agent": "所屬代理名稱",
+      "group": "所屬超代名稱",
+      "rake": 數字
+    }
+  ]
+}
+
+規則：
+1. rake 取「Ring Game服務費」或「Ring Game Rake」欄的數值，轉為正數（絕對值）
+2. 包含所有 Role 為 Player 或 Agent 的人
+3. group 填入該玩家隸屬的超代（Super Agent）名稱
+4. 看不清楚的欄位填空字串 ""
+5. 只回傳 JSON，不要任何其他文字`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: mediaType, data: base64Data } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 3000 }
+        })
+      }
+    );
+
+    clearInterval(timer);
+    document.getElementById('analyzingWrap').className = 'analyzing-wrap';
+
+    const data = await res.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const cleaned = raw.replace(/```json|```/g, '').trim();
+    const result = JSON.parse(cleaned);
+
+    parsedPlayers = (result.players || []).map(p => ({
+      ...p,
+      rake: Math.abs(parseFloat(p.rake) || 0)
+    }));
+    parsedPeriod = result.period || '';
+
+    if (parsedPlayers.length === 0) {
+      showToast('⚠️ 未識別到玩家，請換圖重試', '#e87c2a');
+      return;
+    }
+
+    document.getElementById('resultRows').innerHTML = parsedPlayers.map(p =>
+      `<div class="result-row">
+        <span>${p.nick || p.id}<span style="color:var(--text3);font-size:10px;margin-left:6px">${p.group || ''}</span></span>
+        <span style="color:var(--gold);font-weight:600">${fmt(p.rake)}</span>
+      </div>`
+    ).join('');
+
+    document.getElementById('resultPreview').className = 'result-preview show';
+    document.getElementById('btnConfirm').className = 'btn-confirm-import show';
+
+  } catch (err) {
+    clearInterval(timer);
+    document.getElementById('analyzingWrap').className = 'analyzing-wrap';
+    console.error(err);
+    showToast('⚠️ 分析失敗，請重試', '#e03030');
+  }
+}
+
+function confirmImport() {
+  if (!parsedPlayers.length) return;
+  players = parsedPlayers;
+  const defaultRate = parseFloat(document.getElementById('globalRate')?.value) || 30;
+  rates = {};
+  players.forEach(p => rates[p.id] = defaultRate);
+
+  if (parsedPeriod) document.getElementById('periodLabel').textContent = '期間：' + parsedPeriod;
+
+  closeImport();
+  document.getElementById('rateBar').style.display = 'flex';
+  document.getElementById('totalBar').style.display = 'block';
+  activeAgent = null;
+  renderFilterBar();
+  renderPlayers();
+  updateTotals();
+  showToast(`✓ 已導入 ${players.length} 位玩家`);
+}
+
+// ── Filter ──
+function renderFilterBar() {
+  if (!players.length) return;
+  const agents = [...new Set(players.map(p => p.agent).filter(a => a && a !== '-' && a !== ''))].sort();
+  const bar = document.getElementById('filterBar');
+  const chips = document.getElementById('filterChips');
+  bar.className = 'filter-bar show';
+
+  let html = `<div class="filter-chip all ${activeAgent === null ? 'active' : ''}" onclick="setFilter(null)">全部 (${players.length})</div>`;
+  agents.forEach(a => {
+    const count = players.filter(p => p.agent === a || p.nick === a || p.id === a).length;
+    const isActive = activeAgent === a;
+    html += `<div class="filter-chip ${isActive ? 'active' : ''}" onclick="setFilter('${a}')">${a} <span style="opacity:.6">(${count})</span></div>`;
+  });
+  chips.innerHTML = html;
+}
+
+function setFilter(agent) {
+  activeAgent = agent;
+  renderFilterBar();
+  renderPlayers();
+  updateTotals();
+}
+
+function clearFilter() {
+  setFilter(null);
+}
+
+function getFilteredPlayers() {
+  if (!activeAgent) return players;
+  // Show the agent themselves + all players under that agent
+  return players.filter(p =>
+    p.agent === activeAgent ||
+    p.nick === activeAgent ||
+    p.id === activeAgent
+  );
+}
+
+// ── Render ──
+function renderPlayers() {
+  const el = document.getElementById('playerContainer');
+  const badge = document.getElementById('filterBadge');
+
+  if (!players.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📷</div><div class="empty-text">點擊「導入圖片」開始</div><div class="empty-hint">上傳 Excel 截圖<br>AI 自動識別玩家資料與服務費</div></div>`;
+    badge.className = 'filter-badge';
+    return;
+  }
+
+  const filtered = getFilteredPlayers();
+
+  // Filter badge
+  if (activeAgent) {
+    const filteredRake = filtered.reduce((s, p) => s + p.rake, 0);
+    const filteredRB = filtered.reduce((s, p) => s + calcRB(p.rake, rates[p.id] || 0), 0);
+    badge.className = 'filter-badge show';
+    badge.textContent = `代理「${activeAgent}」 · ${filtered.length} 人 · 服務費 ${fmt(filteredRake)} · 退傭 ${fmt(filteredRB)}`;
+  } else {
+    badge.className = 'filter-badge';
+  }
+
+  const groups = [...new Set(filtered.map(p => p.group || '未分組'))];
+  let html = '';
+  groups.forEach(g => {
+    const gp = filtered.filter(p => (p.group || '未分組') === g);
+    const gRake = gp.reduce((s, p) => s + p.rake, 0);
+    html += `<div class="section-header">
+      <span>超代：${g}</span>
+      <span>服務費 ${fmt(gRake)} <span class="section-count">${gp.length}人</span></span>
+    </div>`;
+    gp.forEach(p => {
+      const rb = calcRB(p.rake, rates[p.id] || 0);
+      html += `<div class="player-row">
+        <div class="player-nick">
+          <div class="nick-name">${p.nick || '—'}</div>
+          <div class="nick-id">${p.id}${p.agent ? ' · ' + p.agent : ''}</div>
+        </div>
+        <div class="player-rake">
+          <div class="rake-label">服務費</div>
+          <div class="rake-val">${fmt(p.rake)}</div>
+        </div>
+        <div class="player-rate-wrap">
+          <input type="number" id="rate_${p.id}" value="${rates[p.id] || 30}" min="0" max="100"
+            oninput="onRateChange('${p.id}', this.value)">
+          <span class="rate-pct">%</span>
+        </div>
+        <div class="player-result">
+          <div class="result-val" id="rb_${p.id}">${fmt(rb)}</div>
+          <div class="result-label">退傭</div>
+        </div>
+      </div>`;
+    });
+  });
+  el.innerHTML = html || `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">找不到此代理的玩家</div></div>`;
+}
+
+function onRateChange(id, val) {
+  rates[id] = parseFloat(val) || 0;
+  const p = players.find(x => x.id === id);
+  if (!p) return;
+  const el = document.getElementById('rb_' + id);
+  if (el) el.textContent = fmt(calcRB(p.rake, rates[id]));
+  updateTotals();
+  // Refresh badge text if filtering
+  if (activeAgent) {
+    const filtered = getFilteredPlayers();
+    const filteredRake = filtered.reduce((s, p) => s + p.rake, 0);
+    const filteredRB = filtered.reduce((s, p) => s + calcRB(p.rake, rates[p.id] || 0), 0);
+    const badge = document.getElementById('filterBadge');
+    badge.textContent = `代理「${activeAgent}」 · ${filtered.length} 人 · 服務費 ${fmt(filteredRake)} · 退傭 ${fmt(filteredRB)}`;
+  }
+}
+
+function updateTotals() {
+  const filtered = getFilteredPlayers();
+  const total = filtered.reduce((s, p) => s + calcRB(p.rake, rates[p.id] || 0), 0);
+  const totalRake = filtered.reduce((s, p) => s + p.rake, 0);
+  // Always show global totals in summary strip
+  const allTotal = players.reduce((s, p) => s + calcRB(p.rake, rates[p.id] || 0), 0);
+  const allRake = players.reduce((s, p) => s + p.rake, 0);
+  document.getElementById('grandTotal').textContent = fmt(total);
+  document.getElementById('grandCount').textContent = `${filtered.length} 位玩家${activeAgent ? '（篩選中）' : ''}`;
+  document.getElementById('grandRake').textContent = fmt(totalRake);
+  document.getElementById('sumPayout').textContent = fmt(allTotal);
+  document.getElementById('sumRake').textContent = fmt(allRake);
+  document.getElementById('sumCount').textContent = `${players.length} 人`;
+}
+
+function applyGlobal() {
+  const r = parseFloat(document.getElementById('globalRate').value) || 0;
+  players.forEach(p => {
+    rates[p.id] = r;
+    const el = document.getElementById('rate_' + p.id);
+    if (el) el.value = r;
+    const rbEl = document.getElementById('rb_' + p.id);
+    if (rbEl) rbEl.textContent = fmt(calcRB(p.rake, r));
+  });
+  updateTotals();
+  showToast(`✓ 已套用 ${r}% 至所有玩家`);
+}
+
+function showToast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color || 'var(--green)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
