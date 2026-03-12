@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>退水試算</title>
+<title>退水試算系統 - 修正版</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
 :root{--bg:#0a0a0a;--bg2:#111;--gold:#c9a84c;--gold2:#f0d080;--text:#f0f0f0;--muted:#555;--red:#ff4d4d;--green:#4dff91;--border:#222;}
@@ -175,14 +175,32 @@ function run(e) {
   var preview = document.getElementById('previewImg');
   preview.src = URL.createObjectURL(file);
   preview.style.display = 'block';
-  document.getElementById('out').innerHTML = "<div class='loading'>⏳ 正在逐行分析，請稍候...</div>";
+  document.getElementById('out').innerHTML = "<div class='loading'>⏳ 正在分析資料層級與金額，請稍候...</div>";
   document.getElementById('uploadBtn').disabled = true;
 
   var reader = new FileReader();
   reader.onload = function(ev) {
     var base64 = ev.target.result.split(',')[1];
-    var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey;
-    var prompt = '你是專業資料提取助手。請仔細逐行讀取這張撲克平台報表圖片，絕對不能漏掉任何一行。\n\n表格欄位（由左至右）：\n1. 超級代理ID（Super Agent ID）— 此人的超代\n2. 代理ID（Agent ID）— 此人的直屬上線代理，可能空白\n3. 玩家ID（Player ID）— 此人自己的ID\n4. 暱稱（Nickname）\n5. 玩家類型（Player 或 Agent）\n6. 服務費 Rake（取絕對值）\n7. Total P&L 或類似欄位 — 玩家純輸贏（未扣Rake），正負保留\n\n規則：\n- 代理ID有值 → 此人屬於該代理底下\n- 代理ID空白 → 此人直屬超代，superAgentId填超代ID\n- 玩家類型是 Agent → 他本身是代理\n- 忽略 TOTAL 列和空白列\n\n輸出純 JSON（不要任何 markdown 或說明）：\n{"rows":[{"superAgentId":"超代ID或null","agentId":"代理ID或null","playerId":"玩家ID","nick":"暱稱","type":"Player或Agent","rake":數字,"pnl":數字}]}';
+    // 使用目前穩定的 Gemini 2.0 Flash
+    var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+    
+    // 優化後的 Prompt，強化類別與層級邏輯
+    var prompt = `你是專業的撲克報表數據提取助手。請嚴格逐行讀取圖片中的表格。
+
+邏輯規則：
+1. **角色識別**：
+   - 找出「超級代理 ID (Super Agent ID)」、「代理 ID (Agent ID)」與「玩家 ID (Player ID)」。
+   - 如果 A 的 Agent ID 是 B，表示 A 屬於 B 代理底下。
+   - 如果 Agent ID 欄位為空或等於 Super Agent ID，則該玩家直屬超級代理。
+2. **數值提取**：
+   - 服務費 (Rake)：請取絕對值。
+   - 總輸贏 (Total P&L)：請保留正負號。
+3. **過濾**：
+   - 忽略所有包含 "TOTAL" 或 "總計" 的列。
+   - 忽略空白列。
+
+輸出純 JSON 格式（不要 Markdown）：
+{"rows":[{"superAgentId":"ID","agentId":"ID或null","playerId":"ID","nick":"暱稱","type":"Player或Agent","rake":數字,"pnl":數字}]}`;
 
     fetch(url, {
       method: 'POST',
@@ -192,19 +210,19 @@ function run(e) {
           { text: prompt },
           { inline_data: { mime_type: file.type, data: base64 } }
         ]}],
-        generationConfig: { temperature: 0 }
+        generationConfig: { temperature: 0.1 }
       })
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data.error) throw new Error('API 錯誤 ' + data.error.code + ': ' + data.error.message);
       var aiText = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-      if (!aiText) throw new Error('AI 未回傳內容，請重試');
+      if (!aiText) throw new Error('AI 未回傳內容，請檢查圖片或 Key');
       var cleaned = aiText.replace(/```json|```/g, '').trim();
       var match = cleaned.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('無法解析回傳格式');
+      if (!match) throw new Error('回傳格式錯誤');
       var parsed = JSON.parse(match[0]);
-      if (!parsed.rows || !parsed.rows.length) throw new Error('未找到任何資料');
+      if (!parsed.rows || !parsed.rows.length) throw new Error('未找到任何有效資料');
       grouped = buildGroups(parsed.rows);
       myCutPct = 100;
       renderAll();
@@ -225,48 +243,52 @@ function buildGroups(rows) {
   var result = {};
 
   function getOwner(r) {
-    var aid = r.agentId && r.agentId !== 'null' ? String(r.agentId) : null;
-    var sid = r.superAgentId && r.superAgentId !== 'null' ? String(r.superAgentId) : null;
+    var aid = r.agentId && r.agentId !== 'null' ? String(r.agentId).trim() : null;
+    var sid = r.superAgentId && r.superAgentId !== 'null' ? String(r.superAgentId).trim() : null;
     return aid || sid || null;
   }
 
-  // Step 1: 建立代理
+  // 1. 建立代理容器
   rows.forEach(function(r) {
     if (!r.playerId) return;
     var owner = getOwner(r);
+    // 如果此人本身是 Agent，或者他沒有上線代理（他自己就是頂層）
     if (r.type === 'Agent' || !owner) {
-      var id = String(r.playerId);
+      var id = String(r.playerId).trim();
       if (!result[id]) {
         result[id] = { nick: r.nick || id, selfRake: Math.abs(parseFloat(r.rake)||0), selfPnl: parseFloat(r.pnl)||0, players: [] };
-      } else {
-        result[id].nick = r.nick || id;
-        result[id].selfRake = Math.abs(parseFloat(r.rake)||0);
-        result[id].selfPnl = parseFloat(r.pnl)||0;
       }
     }
   });
 
-  // Step 2: 代理本人加入 players
+  // 2. 代理本人作為成員
   Object.keys(result).forEach(function(aid) {
     var d = result[aid];
     d.players.push({ id: aid, nick: d.nick, rake: d.selfRake, pnl: d.selfPnl, pct: 30, isSelf: true });
   });
 
-  // Step 3: 分配 Player
+  // 3. 分配玩家到對應代理
   rows.forEach(function(r) {
     if (r.type === 'Agent' || !r.playerId) return;
     var owner = getOwner(r);
     if (!owner) return;
-    var ownerStr = String(owner);
-    var pid = String(r.playerId);
+    var ownerStr = String(owner).trim();
+    var pid = String(r.playerId).trim();
+
     if (!result[ownerStr]) {
-      result[ownerStr] = { nick: ownerStr, selfRake: 0, selfPnl: 0, players: [
-        { id: ownerStr, nick: ownerStr, rake: 0, pnl: 0, pct: 30, isSelf: true }
-      ]};
+      result[ownerStr] = { nick: "代理 " + ownerStr, selfRake: 0, selfPnl: 0, players: [] };
     }
+    
     var exists = result[ownerStr].players.some(function(p) { return p.id === pid; });
     if (!exists) {
-      result[ownerStr].players.push({ id: pid, nick: r.nick || pid, rake: Math.abs(parseFloat(r.rake)||0), pnl: parseFloat(r.pnl)||0, pct: 30, isSelf: false });
+      result[ownerStr].players.push({ 
+        id: pid, 
+        nick: r.nick || pid, 
+        rake: Math.abs(parseFloat(r.rake)||0), 
+        pnl: parseFloat(r.pnl)||0, 
+        pct: 30, 
+        isSelf: false 
+      });
     }
   });
 
@@ -280,6 +302,8 @@ function renderAll() {
 
   agentIds.forEach(function(agentId) {
     var d = grouped[agentId];
+    if (d.players.length === 0) return; // 跳過無玩家代理
+
     var safeA = safe(agentId);
     html += '<div class="agent-block" id="ab_' + safeA + '">';
     html += '<div class="agent-header" onclick="toggleAgentDetail(\'' + safeA + '\')">';
@@ -289,8 +313,8 @@ function renderAll() {
     html += '<div class="agent-sub">' + escHtml(agentId) + ' ／ ' + d.players.length + ' 人</div>';
     html += '</div>';
     html += '<div class="agent-totals">';
-    html += '<div class="agent-self-rake">Rake $' + fmt(calcTotalRake(d)) + '</div>';
-    html += '<div class="agent-rebate-total">退水 $<span id="agt_' + safeA + '">' + fmt(calcAgentRebate(d)) + '</span></div>';
+    html += '<div class="agent-self-rake">總 Rake $' + fmt(calcTotalRake(d)) + '</div>';
+    html += '<div class="agent-rebate-total">總退水 $<span id="agt_' + safeA + '">' + fmt(calcAgentRebate(d)) + '</span></div>';
     html += '</div></div>';
     html += '<div class="detail-panel" id="adp_' + safeA + '">' + agentDetailHTML(agentId, d) + '</div>';
     html += '</div>';
@@ -315,7 +339,6 @@ function playerRowHTML(agentId, idx, p) {
   html += '<div class="player-row' + (p.isSelf ? ' is-agent-self' : '') + '" id="pr_' + safeP + '">';
   html += p.isSelf ? '<span class="ph"></span>' : '<span class="drag-handle">⠿</span>';
 
-  // Info
   html += '<div class="player-info" onclick="togglePlayerDetail(\'' + safeP + '\')">';
   html += '<div class="p-nick">' + escHtml(p.nick || '-') + selfTag + ' <span class="expand-icon" id="picon_' + safeP + '" style="font-size:9px">▼</span></div>';
   html += '<div class="p-id">' + escHtml(p.id || '') + '</div>';
@@ -323,7 +346,6 @@ function playerRowHTML(agentId, idx, p) {
   html += '<div class="detail-panel" id="pdp_' + safeP + '" onclick="event.stopPropagation()">' + playerDetailHTML(p) + '</div>';
   html += '</div>';
 
-  // Move menu
   if (!p.isSelf) {
     var agentIds = Object.keys(grouped);
     var opts = '';
@@ -337,7 +359,6 @@ function playerRowHTML(agentId, idx, p) {
     html += '</div>';
   }
 
-  // Pct
   html += '<div class="pct-ctrl" onclick="event.stopPropagation()">';
   html += '<button class="pct-btn" onclick="stepPct(\'' + safeA + '\',' + idx + ',-5)">−</button>';
   html += '<div class="pct-val" id="pv_' + safeP + '">' + (p.pct || 0) + '%</div>';
@@ -354,13 +375,13 @@ function summaryHTML() {
   var totalRebate = Object.values(grouped).reduce(function(s, d) { return s + calcAgentRebate(d); }, 0);
   var myActual = totalRebate * myCutPct / 100;
   return '<div class="summary-panel">' +
-    '<div class="summary-title">📊 總覽</div>' +
+    '<div class="summary-title">📊 總覽結算</div>' +
     '<div class="summary-grid">' +
     '<div class="summary-cell"><div class="sc-label">總 RAKE</div><div class="sc-val">$<span id="s_rake">' + fmt(totalRake) + '</span></div></div>' +
-    '<div class="summary-cell"><div class="sc-label">總退水金額</div><div class="sc-val">$<span id="s_rebate">' + fmt(totalRebate) + '</span></div></div>' +
+    '<div class="summary-cell"><div class="sc-label">總應退水</div><div class="sc-val">$<span id="s_rebate">' + fmt(totalRebate) + '</span></div></div>' +
     '</div>' +
     '<div class="my-cut-row">' +
-    '<div class="my-cut-label">我實際拿到</div>' +
+    '<div class="my-cut-label">我實際收入</div>' +
     '<div class="pct-ctrl">' +
     '<button class="pct-btn" onclick="stepMyCut(-5)">−</button>' +
     '<div class="pct-val" id="mycut_pct" style="width:40px">' + myCutPct + '%</div>' +
@@ -370,25 +391,25 @@ function summaryHTML() {
     '</div></div>';
 }
 
-// ── Detail HTML ──────────────────────────────────────
+// ── 邏輯修正：改為 加法 (P&L + 退水) ─────────────────
 function playerDetailHTML(p) {
   var rebate = p.rake * (p.pct || 0) / 100;
-  var net = (p.pnl || 0) - rebate;
-  return '<div class="detail-row"><span class="detail-label">總輸贏（純輸贏）</span><span class="detail-val ' + ((p.pnl||0) >= 0 ? 'pos' : 'neg') + '">$' + fmt(p.pnl || 0) + '</span></div>' +
-    '<div class="detail-row"><span class="detail-label">應退水（' + (p.pct||0) + '%）</span><span class="detail-val neutral">+ $' + fmt(rebate) + '</span></div>' +
-    '<div class="detail-row"><span class="detail-label" style="color:var(--text);font-weight:700">實際結算</span><span class="detail-val big ' + (net >= 0 ? 'pos' : 'neg') + '">$' + fmt(net) + '</span></div>';
+  var net = (p.pnl || 0) + rebate; // 修正：總輸贏 + 退水
+  return '<div class="detail-row"><span class="detail-label">總輸贏 (純輸贏)</span><span class="detail-val ' + ((p.pnl||0) >= 0 ? 'pos' : 'neg') + '">$' + fmt(p.pnl || 0) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label">退水返還</span><span class="detail-val neutral">+ $' + fmt(rebate) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label" style="color:var(--text);font-weight:700">實際結算 (含退水)</span><span class="detail-val big ' + (net >= 0 ? 'pos' : 'neg') + '">$' + fmt(net) + '</span></div>';
 }
 
 function agentDetailHTML(agentId, d) {
   var totalPnl = d.players.reduce(function(s, p) { return s + (p.pnl || 0); }, 0);
   var totalRebate = calcAgentRebate(d);
-  var net = totalPnl - totalRebate;
+  var net = totalPnl + totalRebate; // 修正：總輸贏 + 退水
   return '<div class="detail-row"><span class="detail-label">區域總輸贏</span><span class="detail-val ' + (totalPnl >= 0 ? 'pos' : 'neg') + '">$' + fmt(totalPnl) + '</span></div>' +
-    '<div class="detail-row"><span class="detail-label">應退水總額</span><span class="detail-val neutral">+ $' + fmt(totalRebate) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label">區域退水總額</span><span class="detail-val neutral">+ $' + fmt(totalRebate) + '</span></div>' +
     '<div class="detail-row"><span class="detail-label" style="color:var(--text);font-weight:700">區域實際結算</span><span class="detail-val big ' + (net >= 0 ? 'pos' : 'neg') + '">$' + fmt(net) + '</span></div>';
 }
 
-// ── Toggle ───────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────
 function toggleAgentDetail(safeA) {
   var dp = document.getElementById('adp_' + safeA);
   var icon = document.getElementById('aicon_' + safeA);
@@ -405,20 +426,12 @@ function togglePlayerDetail(safeP) {
   if (icon) icon.classList.toggle('open', isOpen);
 }
 
-// ── Pct ──────────────────────────────────────────────
 function stepPct(safeA, idx, delta) {
   var key = findKey(safeA);
   if (!key || !grouped[key] || !grouped[key].players[idx]) return;
   var p = grouped[key].players[idx];
   p.pct = Math.min(100, Math.max(0, (p.pct || 0) + delta));
-  var safeP = safe(key + '_' + idx);
-  var pvEl = document.getElementById('pv_' + safeP);
-  var amtEl = document.getElementById('pamt_' + safeP);
-  if (pvEl) pvEl.textContent = p.pct + '%';
-  if (amtEl) amtEl.textContent = '$' + fmt(p.rake * p.pct / 100);
-  var agtEl = document.getElementById('agt_' + safeA);
-  if (agtEl) agtEl.textContent = fmt(calcAgentRebate(grouped[key]));
-  refreshSummary();
+  renderAll(); // 重繪以確保明細數據同步更新
 }
 
 function stepMyCut(delta) {
@@ -431,15 +444,11 @@ function stepMyCut(delta) {
 function refreshSummary() {
   var totalRebate = Object.values(grouped).reduce(function(s, d) { return s + calcAgentRebate(d); }, 0);
   var totalRake = Object.values(grouped).reduce(function(s, d) { return s + calcTotalRake(d); }, 0);
-  var el1 = document.getElementById('s_rake');
-  var el2 = document.getElementById('s_rebate');
-  var el3 = document.getElementById('s_mycut');
-  if (el1) el1.textContent = fmt(totalRake);
-  if (el2) el2.textContent = fmt(totalRebate);
-  if (el3) el3.textContent = fmt(totalRebate * myCutPct / 100);
+  document.getElementById('s_rake').textContent = fmt(totalRake);
+  document.getElementById('s_rebate').textContent = fmt(totalRebate);
+  document.getElementById('s_mycut').textContent = fmt(totalRebate * myCutPct / 100);
 }
 
-// ── Move Menu ────────────────────────────────────────
 function toggleMoveMenu(safeP) {
   var mm = document.getElementById('mm_' + safeP);
   if (!mm) return;
@@ -462,60 +471,45 @@ function movePlayerTo(fromSafe, toSafe, idx) {
   renderAll();
 }
 
-// ── Drag (desktop only) ──────────────────────────────
 function setupDrag() {
   document.querySelectorAll('.drag-handle').forEach(function(handle) {
     var row = handle.closest('.player-row');
-    if (!row) return;
     row.setAttribute('draggable', 'true');
-    row.addEventListener('dragstart', function(e) {
+    row.ondragstart = function(e) {
       var block = row.closest('.agent-block');
-      if (!block) return;
       var safeA = block.id.replace('ab_', '');
       var playersEl = document.getElementById('players_' + safeA);
-      var rows = playersEl ? playersEl.querySelectorAll('.player-row') : [];
-      var idx = -1;
-      rows.forEach(function(r, i) { if (r === row) idx = i; });
-      if (idx < 0) return;
+      var rows = playersEl.querySelectorAll('.player-row');
+      var idx = Array.from(rows).indexOf(row);
       dragState = { safeA: safeA, idx: idx };
-      e.dataTransfer.effectAllowed = 'move';
-      setTimeout(function() { row.classList.add('dragging'); }, 0);
-    });
-    row.addEventListener('dragend', function() {
+      setTimeout(() => row.classList.add('dragging'), 0);
+    };
+    row.ondragend = () => {
       row.classList.remove('dragging');
-      document.querySelectorAll('.agent-block.drag-over').forEach(function(b) { b.classList.remove('drag-over'); });
-      dragState = null;
-    });
+      document.querySelectorAll('.agent-block').forEach(b => b.classList.remove('drag-over'));
+    };
   });
 
   document.querySelectorAll('.agent-block').forEach(function(block) {
-    block.addEventListener('dragover', function(e) {
+    block.ondragover = (e) => { e.preventDefault(); block.classList.add('drag-over'); };
+    block.ondragleave = () => block.classList.remove('drag-over');
+    block.ondrop = (e) => {
       e.preventDefault();
-      block.classList.add('drag-over');
-    });
-    block.addEventListener('dragleave', function(e) {
-      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
-    });
-    block.addEventListener('drop', function(e) {
-      e.preventDefault();
-      block.classList.remove('drag-over');
       if (!dragState) return;
       var toSafeA = block.id.replace('ab_', '');
-      if (toSafeA === dragState.safeA) return;
-      var fromKey = findKey(dragState.safeA);
-      var toKey = findKey(toSafeA);
-      if (!fromKey || !toKey) return;
-      var player = grouped[fromKey].players.splice(dragState.idx, 1)[0];
-      grouped[toKey].players.push(player);
+      if (toSafeA !== dragState.safeA) {
+        var fromKey = findKey(dragState.safeA);
+        var toKey = findKey(toSafeA);
+        var p = grouped[fromKey].players.splice(dragState.idx, 1)[0];
+        grouped[toKey].players.push(p);
+        renderAll();
+      }
       dragState = null;
-      renderAll();
-    });
+    };
   });
 }
 
-// ── Helpers ──────────────────────────────────────────
 function findKey(safeId) {
-  if (grouped[safeId]) return safeId;
   var keys = Object.keys(grouped);
   for (var i = 0; i < keys.length; i++) {
     if (safe(keys[i]) === safeId) return keys[i];
@@ -536,7 +530,7 @@ function fmt(n) {
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function safe(s) {
