@@ -6,24 +6,26 @@
 <title>退傭試算 (最終穩定版)</title>
 <style>
   :root { --bg: #0a0a0a; --gold: #c9a84c; --text: #f0f0f0; }
-  body { background: var(--bg); color: var(--text); font-family: sans-serif; max-width: 430px; margin: 0 auto; padding: 20px; }
-  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; }
-  .btn { background: var(--gold); color: black; padding: 12px 25px; border-radius: 25px; border: none; font-weight: bold; width: 100%; cursor: pointer; margin-top: 20px; }
+  body { background: var(--bg); color: var(--text); font-family: sans-serif; max-width: 430px; margin: 0 auto; padding: 15px; }
+  .btn { background: var(--gold); color: black; padding: 12px; border-radius: 25px; border: none; font-weight: bold; width: 100%; cursor: pointer; font-size: 16px; }
+  table { width: 100%; margin-top: 20px; border-collapse: collapse; background: #111; border-radius: 10px; overflow: hidden; }
+  th { background: #222; color: var(--gold); padding: 12px; text-align: left; }
+  td { padding: 12px; border-bottom: 1px solid #222; }
 </style>
 </head>
 <body>
-<div class="header">
-  <b style="color:var(--gold)">♠ 退傭試算 (穩定版)</b>
-  <button onclick="setKey()">⚙️</button>
+<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
+  <b style="color:var(--gold)">♠ 退傭試算 (已連線模式)</b>
+  <button onclick="setKey()" style="background:none; border:none; color:#444">⚙️</button>
 </div>
-<button class="btn" onclick="document.getElementById('f').click()">📷 導入圖片開始分析</button>
+<button class="btn" style="margin-top:20px" onclick="document.getElementById('f').click()">📷 導入圖片開始試算</button>
 <input type="file" id="f" hidden accept="image/*" onchange="run(event)">
-<div id="out" style="margin-top:20px"></div>
+<div id="out" style="margin-top:20px;"></div>
 
 <script>
 function setKey() { 
-  const k = prompt("請貼上 API Key:", localStorage.getItem('g_key')||""); 
-  if(k) { localStorage.setItem('g_key', k.trim()); alert("Key 已儲存！"); }
+  const k = prompt("目前 API 已有存取紀錄，如需更換請貼上：", localStorage.getItem('g_key')||""); 
+  if(k) { localStorage.setItem('g_key', k.trim()); location.reload(); }
 }
 
 async function run(e) {
@@ -32,13 +34,12 @@ async function run(e) {
   if(!key) { setKey(); return; }
   
   const out = document.getElementById('out');
-  out.innerHTML = "正在辨識中...";
+  out.innerHTML = "<div style='text-align:center; color:var(--gold)'>AI 正在計算數據，請稍後...</div>";
 
   const reader = new FileReader();
   reader.onload = async (ev) => {
     const base64 = ev.target.result.split(',')[1];
-    // 改用權限最寬鬆的 1.5-flash-8b 模型
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
     
     try {
       const res = await fetch(url, {
@@ -46,7 +47,7 @@ async function run(e) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [
-            { text: "提取表格中的玩家ID、暱稱和服務費(Rake)，以 JSON 回傳: {players:[{id,nick,rake}]}" },
+            { text: "這是一張撲克報表。請提取玩家ID、暱稱和服務費(Rake)。請直接輸出 JSON 陣列，格式為: [{\"id\":\"\",\"nick\":\"\",\"rake\":0}]，不要說任何廢話。" },
             { inline_data: { mime_type: file.type, data: base64 } }
           ]}]
         })
@@ -55,17 +56,18 @@ async function run(e) {
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
 
-      const text = data.candidates[0].content.parts[0].text;
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      const ps = JSON.parse(jsonMatch[0]).players;
+      const aiText = data.candidates[0].content.parts[0].text;
+      // 強力抓取 JSON 內容
+      const jsonStr = aiText.match(/\[[\s\S]*\]/)[0];
+      const ps = JSON.parse(jsonStr);
       
-      let h = '<table style="width:100%; border-collapse:collapse">';
+      let h = '<table><tr><th>玩家</th><th style="text-align:right">服務費</th></tr>';
       ps.forEach(p => {
-        h += `<tr style="border-bottom:1px solid #222"><td style="padding:10px">${p.nick}<br><small style="color:#555">${p.id}</small></td><td style="text-align:right; color:var(--gold)">$${p.rake}</td></tr>`;
+        h += `<tr><td>${p.nick}<br><small style="color:#666">${p.id}</small></td><td style="text-align:right; color:var(--gold); font-weight:bold">$${p.rake}</td></tr>`;
       });
       out.innerHTML = h + '</table>';
     } catch (err) {
-      out.innerHTML = "分析失敗：" + err.message + "<br><br>這通常是因為 Google 剛創的金鑰還在同步。請等 5 分鐘再試。";
+      out.innerHTML = `<div style="color:red; padding:10px; border:1px solid red;">辨識失敗：${err.message}<br><br>這通常是圖片不夠清晰，請試著靠近一點重拍。</div>`;
     }
   };
   reader.readAsDataURL(file);
