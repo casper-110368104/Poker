@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退水試算</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+:root{--bg:#0a0a0a;--bg2:#111;--gold:#c9a84c;--gold2:#f0d080;--text:#f0f0f0;--muted:#555;--red:#ff4d4d;--green:#4dff91;--border:#222;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;max-width:520px;margin:0 auto;padding:16px 14px 60px;min-height:100vh;}
+
+/* Header */
+.hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:12px;margin-bottom:16px;}
+.hdr-title{color:var(--gold);font-weight:700;font-size:15px;letter-spacing:1px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.key-status{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+.key-dot{width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;transition:background .3s;}
+.key-dot.on{background:var(--green);}
+.gear-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;}
+.gear-btn:active{background:#333;}
+
+/* Settings overlay */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:998;}
+.overlay.show{display:block;}
+.settings-panel{display:none;position:fixed;top:0;right:0;height:100%;width:300px;max-width:88vw;background:#141414;border-left:1px solid #2a2a2a;z-index:999;padding:20px 18px;overflow-y:auto;}
+.settings-panel.show{display:block;}
+.settings-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #2a2a2a;padding-bottom:12px;}
+.settings-hdr span{color:var(--gold);font-weight:700;font-size:15px;}
+.close-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted);cursor:pointer;}
+.close-btn:active{background:#333;}
+.card-label{font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase;}
+.key-row{display:flex;gap:8px;}
+.key-input{flex:1;min-width:0;background:#0d0d0d;border:1px solid #333;border-radius:8px;color:var(--text);padding:12px;font-size:14px;font-family:monospace;outline:none;}
+.key-input:focus{border-color:var(--gold);}
+.save-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;color:var(--gold);padding:0 16px;font-size:13px;font-weight:700;white-space:nowrap;height:48px;min-width:60px;cursor:pointer;}
+.save-btn:active{background:#2a2a2a;}
+.key-hint{font-size:10px;color:#444;margin-top:8px;line-height:1.6;}
+.key-hint a{color:#666;}
+
+/* Upload */
+.upload-btn{background:linear-gradient(135deg,var(--gold),#a07830);color:#000;border:none;border-radius:25px;font-weight:700;width:100%;font-size:15px;letter-spacing:1px;font-family:'Noto Sans TC',sans-serif;height:56px;cursor:pointer;}
+.upload-btn:active{opacity:.85;}
+.upload-btn:disabled{opacity:.4;}
+.loading{text-align:center;margin-top:24px;color:var(--gold);font-size:14px;animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.preview-img{width:100%;border-radius:10px;margin-top:12px;border:1px solid #222;display:none;}
+
+/* Agent block */
+.agent-block{background:var(--bg2);border:2px solid var(--border);border-radius:12px;margin-top:14px;transition:border-color .15s;}
+.agent-block.drag-over{border-color:var(--gold);background:#151200;}
+.agent-hdr{background:#1a1a1a;padding:12px 14px;border-radius:10px 10px 0 0;cursor:pointer;user-select:none;}
+.agent-hdr-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.agent-name{font-weight:700;font-size:14px;color:var(--gold);}
+.agent-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.agent-totals{text-align:right;flex-shrink:0;padding-left:8px;}
+.agent-rake-lbl{font-size:11px;color:var(--muted);}
+.agent-rebate-lbl{font-size:13px;color:var(--gold2);font-weight:700;margin-top:2px;}
+.xicon{font-size:10px;color:var(--muted);margin-left:4px;display:inline-block;transition:transform .2s;}
+.xicon.open{transform:rotate(180deg);}
+.drop-hint{font-size:10px;color:transparent;text-align:center;padding:3px;}
+.agent-block.drag-over .drop-hint{color:var(--gold);}
+
+/* Detail panel */
+.dpanel{display:none;background:#0d0d08;border-top:1px solid #2a2a1a;padding:10px 14px;}
+.dpanel.open{display:block;}
+.drow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1a1a10;}
+.drow:last-child{border-bottom:none;}
+.dlbl{font-size:12px;color:var(--muted);}
+.dval{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
+.dval.pos{color:var(--green);}
+.dval.neg{color:var(--red);}
+.dval.neu{color:var(--gold2);}
+.dval.big{font-size:14px;}
+
+/* Player row */
+.player-row{border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:4px;transition:opacity .15s;}
+.player-row:last-child{border-bottom:none;}
+.player-row.agent-self{background:#1a1500;}
+.player-row.dragging{opacity:.25;}
+.drag-handle{color:#2a2a2a;font-size:14px;flex-shrink:0;padding:14px 5px;cursor:grab;}
+.drag-handle:hover{color:#555;}
+.ph{width:24px;flex-shrink:0;}
+.pinfo{flex:1;min-width:0;padding:10px 4px;cursor:pointer;}
+.pnick{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pid{font-size:10px;color:var(--muted);margin-top:1px;}
+.prake{font-size:11px;color:#555;margin-top:2px;}
+.agent-tag{font-size:10px;color:var(--gold);opacity:.7;}
+
+/* Move menu */
+.move-wrap{position:relative;flex-shrink:0;padding:4px 2px;}
+.move-btn{background:#1a1a1a;border:1px solid #333;border-radius:6px;color:var(--muted);font-size:11px;cursor:pointer;white-space:nowrap;width:54px;height:40px;display:flex;align-items:center;justify-content:center;}
+.move-btn:active{background:#2a2a2a;color:var(--text);}
+.move-menu{display:none;position:absolute;right:0;top:calc(100% + 2px);background:#1e1e1e;border:1px solid #333;border-radius:8px;z-index:300;min-width:150px;box-shadow:0 6px 24px rgba(0,0,0,.8);max-height:220px;overflow-y:auto;}
+.move-menu.open{display:block;}
+.move-opt{padding:0 14px;font-size:13px;cursor:pointer;color:var(--text);border-bottom:1px solid #2a2a2a;display:flex;align-items:center;height:46px;}
+.move-opt:last-child{border-bottom:none;}
+.move-opt:active{background:#2a2a2a;}
+.move-opt.cur{color:var(--gold);}
+
+/* Pct control */
+.pct-ctrl{display:flex;align-items:center;gap:2px;flex-shrink:0;padding:4px 2px;}
+.pct-btn{width:38px;height:42px;min-width:38px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:var(--gold);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.pct-btn:active{background:#333;}
+.pct-val{width:36px;text-align:center;color:var(--gold2);font-weight:700;font-size:12px;}
+.rebate-amt{min-width:64px;text-align:right;color:var(--gold);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;padding-right:10px;flex-shrink:0;}
+
+/* Summary */
+.summary{background:#101008;border:1px solid #2a2a1a;border-radius:14px;margin-top:20px;overflow:hidden;}
+.summary-title{background:#1a1a10;padding:10px 16px;font-size:11px;color:var(--gold);font-weight:700;letter-spacing:1px;border-bottom:1px solid #2a2a1a;}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;}
+.scell{padding:13px 16px;border-bottom:1px solid #1a1a10;}
+.scell:nth-child(odd){border-right:1px solid #1a1a10;}
+.scell:last-child,.scell:nth-last-child(2){border-bottom:none;}
+.slbl{font-size:10px;color:var(--muted);margin-bottom:4px;}
+.sval{font-size:17px;font-weight:700;color:var(--gold2);font-variant-numeric:tabular-nums;}
+.mycut-row{padding:12px 16px;border-top:1px solid #2a2a1a;display:flex;align-items:center;gap:8px;}
+.mycut-lbl{font-size:12px;color:var(--muted);flex:1;}
+.mycut-result{font-size:15px;font-weight:700;color:var(--green);min-width:80px;text-align:right;font-variant-numeric:tabular-nums;}
+.set50-btn{background:#1a2a1a;border:1px solid #2a5a2a;border-radius:8px;color:var(--green);font-size:12px;font-weight:700;cursor:pointer;padding:0 12px;height:36px;white-space:nowrap;width:100%;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.set50-btn:active{background:#2a3a2a;}
+
+.error-box{background:#1a0a0a;border:1px solid #4a1010;border-radius:10px;padding:14px;margin-top:16px;color:var(--red);font-size:13px;line-height:1.7;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <span class="hdr-title">♠ 退水試算系統</span>
+  <div class="hdr-right">
+    <div class="key-status">
+      <div class="key-dot" id="keyDot"></div>
+      <span id="keyTxt">未設定 Key</span>
+    </div>
+    <button class="gear-btn" id="gearBtn">⚙️</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="settings-panel" id="settingsPanel">
+  <div class="settings-hdr">
+    <span>設定</span>
+    <button class="close-btn" id="closeBtn">✕</button>
+  </div>
+  <div class="card-label">Gemini API Key</div>
+  <div class="key-row">
+    <input type="password" class="key-input" id="keyInput" placeholder="AIza..." autocomplete="off">
+    <button class="save-btn" id="saveBtn">儲存</button>
+  </div>
+  <div class="key-hint">Key 僅存於本機瀏覽器，不上傳任何伺服器。<br>
+    <a href="https://aistudio.google.com/app/apikey" target="_blank">取得 Gemini API Key →</a>
+  </div>
+</div>
+
+<button class="upload-btn" id="uploadBtn">📷 導入報表圖片開始分析</button>
+<input type="file" id="fi" hidden accept="image/*">
+<img id="previewImg" class="preview-img">
+<div id="out"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+var apiKey = '';
+var grouped = {};   // { agentKey: { nick, selfRake, selfPnl, players:[{id,nick,rake,pnl,pct,isSelf}] } }
+var myCutPct = 100;
+var dragState = null;
+
+// ── Settings panel (pure JS, no onclick strings) ────────────────
+document.getElementById('gearBtn').addEventListener('click', openSettings);
+document.getElementById('closeBtn').addEventListener('click', closeSettings);
+document.getElementById('overlay').addEventListener('click', closeSettings);
+document.getElementById('saveBtn').addEventListener('click', saveKey);
+document.getElementById('uploadBtn').addEventListener('click', function() {
+  document.getElementById('fi').click();
+});
+document.getElementById('fi').addEventListener('change', run);
+
+function openSettings() {
+  document.getElementById('settingsPanel').classList.add('show');
+  document.getElementById('overlay').classList.add('show');
+}
+function closeSettings() {
+  document.getElementById('settingsPanel').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── Key ───────────────────────────────────────────────────────
+function loadKey() {
+  try { apiKey = localStorage.getItem('gemini_key') || ''; } catch(e) {}
+  updateKeyUI();
+  if (apiKey) document.getElementById('keyInput').value = apiKey;
+}
+function saveKey() {
+  var v = document.getElementById('keyInput').value.trim();
+  if (!v) { alert('請輸入 API Key'); return; }
+  apiKey = v;
+  try { localStorage.setItem('gemini_key', v); } catch(e) {}
+  updateKeyUI();
+  closeSettings();
+  alert('✅ 已儲存！');
+}
+function updateKeyUI() {
+  document.getElementById('keyDot').classList.toggle('on', !!apiKey);
+  document.getElementById('keyTxt').textContent = apiKey ? 'Key 已設定' : '未設定 Key';
+}
+
+// ── Run ────────────────────────────────────────────────────────
+function run(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  if (!apiKey) { alert('請先在設定⚙️中輸入並儲存 Gemini API Key！'); return; }
+  document.getElementById('previewImg').src = URL.createObjectURL(file);
+  document.getElementById('previewImg').style.display = 'block';
+  document.getElementById('out').innerHTML = '<div class="loading">⏳ 正在逐行分析，請稍候...</div>';
+  document.getElementById('uploadBtn').disabled = true;
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var b64 = ev.target.result.split(',')[1];
+    var prompt = [
+      '你是專業資料提取助手，請仔細逐行讀取這張撲克平台報表圖片，絕對不能漏掉任何一行。',
+      '',
+      '表格欄位順序（由左至右）：',
+      '  欄1: 超級代理ID (Super Agent ID)',
+      '  欄2: 代理ID (Agent ID) — 此人的直屬上線代理，可能是空白',
+      '  欄3: 玩家ID (Player ID) — 此人自己的帳號',
+      '  欄4: 暱稱 (Nickname)',
+      '  欄5: 玩家類型 — 值只有 "Player" 或 "Agent" 兩種',
+      '  欄6: 總服務費 (Total Rake / 服務費合計) — 只讀這欄，取絕對值。不要讀 MTT服務費、保險服務費或其他子項目欄位',
+      '  欄7+: Total P&L 或總輸贏欄位 — 保留正負號',
+      '',
+      '分類規則（非常重要，請嚴格遵守）：',
+      '  規則A: 若 欄5=Agent，此人是「代理」，agentId填欄2，superAgentId填欄1',
+      '  規則B: 若 欄5=Player 且 欄2有值，此人屬於欄2那個代理底下的「玩家」',
+      '  規則C: 若 欄5=Player 且 欄2空白，此人直屬超代（欄1），superAgentId填欄1的值，agentId填null',
+      '  規則D: 忽略 TOTAL 列、欄位標題列、和完全空白列',
+      '',
+      '注意事項（防止欄位誤讀）：',
+      '  - 每一列請從最左邊欄1開始對齊，不可跳欄或錯位',
+      '  - 欄2（代理ID）和欄3（玩家ID）是不同欄，請勿混淆',
+      '  - 若某人欄2空白，代表他沒有直屬代理，不可把欄3的值填入欄2',
+      '  - 玩家類型（欄5）只有 Player 或 Agent，不會有其他值',
+      '',
+      '請逐行輸出，每行一筆，輸出純 JSON，不要任何 markdown：',
+      '{"rows":[{"superAgentId":"欄1值或null","agentId":"欄2值或null","playerId":"欄3值","nick":"欄4值","type":"Player或Agent","rake":數字,"pnl":數字或0}]}'
+    ].join('\n');
+
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: file.type, data: b64 } }] }],
+        generationConfig: { temperature: 0 }
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error('API 錯誤: ' + data.error.message);
+      var txt = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
+      if (!txt) throw new Error('AI 未回傳內容');
+      var m = txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('無法解析格式');
+      var parsed = JSON.parse(m[0]);
+      if (!parsed.rows || !parsed.rows.length) throw new Error('未找到資料');
+      grouped = buildGroups(parsed.rows);
+      myCutPct = 100;
+      renderAll();
+    })
+    .catch(function(err) {
+      document.getElementById('out').innerHTML = '<div class="error-box"><b>⚠ 錯誤</b><br>' + esc(err.message) + '</div>';
+    })
+    .finally(function() {
+      document.getElementById('uploadBtn').disabled = false;
+      document.getElementById('fi').value = '';
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Build Groups ───────────────────────────────────────────────
+function buildGroups(rows) {
+  var res = {};
+
+  function getOwner(r) {
+    var a = r.agentId && r.agentId !== 'null' && String(r.agentId).trim() !== '' ? String(r.agentId) : null;
+    var s = r.superAgentId && r.superAgentId !== 'null' && String(r.superAgentId).trim() !== '' ? String(r.superAgentId) : null;
+    return a || s || null;
+  }
+
+  // Step 1: 建立所有代理節點
+  rows.forEach(function(r) {
+    if (!r.playerId) return;
+    var pid = String(r.playerId);
+    var owner = getOwner(r);
+    if (r.type === 'Agent' || !owner) {
+      if (!res[pid]) {
+        res[pid] = { nick: r.nick || pid, selfRake: Math.abs(parseFloat(r.rake)||0), selfPnl: parseFloat(r.pnl)||0, players: [] };
+      } else {
+        res[pid].nick = r.nick || pid;
+        res[pid].selfRake = Math.abs(parseFloat(r.rake)||0);
+        res[pid].selfPnl = parseFloat(r.pnl)||0;
+      }
+    }
+  });
+
+  // Step 2: 代理本人插入自己的 players 第一位
+  Object.keys(res).forEach(function(aid) {
+    var d = res[aid];
+    d.players.push({ id: aid, nick: d.nick, rake: d.selfRake, pnl: d.selfPnl, pct: 30, isSelf: true });
+  });
+
+  // Step 3: 分配 Player 給代理
+  rows.forEach(function(r) {
+    if (r.type === 'Agent' || !r.playerId) return;
+    var owner = getOwner(r);
+    if (!owner) return;
+    var pid = String(r.playerId);
+    // 如果 owner 本身不是已知代理，建立虛擬代理
+    if (!res[owner]) {
+      res[owner] = { nick: owner, selfRake: 0, selfPnl: 0, players: [
+        { id: owner, nick: owner, rake: 0, pnl: 0, pct: 30, isSelf: true }
+      ]};
+    }
+    var dup = res[owner].players.some(function(p) { return p.id === pid; });
+    if (!dup) {
+      res[owner].players.push({ id: pid, nick: r.nick || pid, rake: Math.abs(parseFloat(r.rake)||0), pnl: parseFloat(r.pnl)||0, pct: 30, isSelf: false });
+    }
+  });
+  return res;
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function renderAll() {
+  var frag = '';
+  Object.keys(grouped).forEach(function(agentId) {
+    var d = grouped[agentId];
+    var sa = s(agentId);
+    frag += '<div class="agent-block" data-agent="' + sa + '">';
+    frag += '<div class="agent-hdr" data-action="toggle-agent" data-agent="' + sa + '">';
+    frag += '<div class="agent-hdr-top">';
+    frag += '<div><div class="agent-name">代理：' + esc(d.nick) + ' <span class="xicon" id="xi_' + sa + '">▼</span></div>';
+    frag += '<div class="agent-sub">' + esc(agentId) + ' ／ ' + d.players.length + ' 人</div></div>';
+    frag += '<div class="agent-totals">';
+    frag += '<div class="agent-rake-lbl">Rake $' + fmt(calcRake(d)) + '</div>';
+    frag += '<div class="agent-rebate-lbl">退水 $<span id="agt_' + sa + '">' + fmt(calcRebate(d)) + '</span></div>';
+    frag += '</div></div>';
+    frag += '<div class="dpanel" id="adp_' + sa + '">' + agentDetail(agentId, d) + '</div>';
+    frag += '</div>';
+    frag += '<div class="drop-hint">📥 放開以移入此代理</div>';
+    frag += '<div class="players-list" id="pl_' + sa + '">';
+    d.players.forEach(function(p, idx) { frag += playerRow(agentId, idx, p); });
+    frag += '</div></div>';
+  });
+  frag += summaryHTML();
+  document.getElementById('out').innerHTML = frag;
+  bindEvents();
+  setupDrag();
+}
+
+function playerRow(agentId, idx, p) {
+  var sa = s(agentId);
+  var sp = s(agentId + '_' + idx);
+  var rebate = p.rake * (p.pct || 0) / 100;
+  var r = '';
+  r += '<div class="player-row' + (p.isSelf ? ' agent-self' : '') + '" id="pr_' + sp + '" data-agent="' + sa + '" data-idx="' + idx + '">';
+  r += p.isSelf ? '<span class="ph"></span>' : '<span class="drag-handle">⠿</span>';
+  // Info — clickable via delegation
+  r += '<div class="pinfo" data-action="toggle-player" data-sp="' + sp + '">';
+  r += '<div class="pnick">' + esc(p.nick || '-') + (p.isSelf ? ' <span class="agent-tag">(代理)</span>' : '') + ' <span class="xicon" id="pxi_' + sp + '" style="font-size:9px">▼</span></div>';
+  r += '<div class="pid">' + esc(p.id || '') + '</div>';
+  r += '<div class="prake">Rake $' + fmt(p.rake) + '</div>';
+  r += '<div class="dpanel" id="pdp_' + sp + '">' + playerDetail(p) + '</div>';
+  r += '</div>';
+  // Move menu
+  if (!p.isSelf) {
+    var opts = '';
+    Object.keys(grouped).forEach(function(aid) {
+      var isCur = aid === agentId;
+      opts += '<div class="move-opt' + (isCur ? ' cur' : '') + '" data-action="move-player" data-from="' + sa + '" data-to="' + s(aid) + '" data-idx="' + idx + '">' + (isCur ? '✓ ' : '') + esc(grouped[aid].nick) + '</div>';
+    });
+    r += '<div class="move-wrap"><button class="move-btn" data-action="toggle-move" data-sp="' + sp + '">移至▾</button>';
+    r += '<div class="move-menu" id="mm_' + sp + '">' + opts + '</div></div>';
+  }
+  // Pct
+  r += '<div class="pct-ctrl">';
+  r += '<button class="pct-btn" data-action="pct" data-agent="' + sa + '" data-idx="' + idx + '" data-delta="-5">−</button>';
+  r += '<div class="pct-val" id="pv_' + sp + '">' + (p.pct || 0) + '%</div>';
+  r += '<button class="pct-btn" data-action="pct" data-agent="' + sa + '" data-idx="' + idx + '" data-delta="5">+</button>';
+  r += '</div>';
+  r += '<div class="rebate-amt" id="pa_' + sp + '">$' + fmt(rebate) + '</div>';
+  r += '</div>';
+  return r;
+}
+
+function summaryHTML() {
+  var totalRake = 0, totalRebate = 0;
+  Object.values(grouped).forEach(function(d) { totalRake += calcRake(d); totalRebate += calcRebate(d); });
+  return '<div class="summary">' +
+    '<div class="summary-title">📊 總覽</div>' +
+    '<div class="summary-grid">' +
+    '<div class="scell"><div class="slbl">總 RAKE</div><div class="sval">$<span id="s_rake">' + fmt(totalRake) + '</span></div></div>' +
+    '<div class="scell"><div class="slbl">總退水金額</div><div class="sval">$<span id="s_rebate">' + fmt(totalRebate) + '</span></div></div>' +
+    '</div>' +
+    '<div class="mycut-row">' +
+    '<div class="mycut-lbl">我實際拿到</div>' +
+    '<div class="pct-ctrl">' +
+    '<button class="pct-btn" data-action="mycut" data-delta="-5">−</button>' +
+    '<div class="pct-val" id="mycut_v" style="width:40px">' + myCutPct + '%</div>' +
+    '<button class="pct-btn" data-action="mycut" data-delta="5">+</button>' +
+    '</div>' +
+    '<div class="mycut-result">$<span id="s_mycut">' + fmt(totalRebate * myCutPct / 100) + '</span></div>' +
+    '<button class="set50-btn" data-action="set50">⚡ 一鍵設定全部退水 50%</button>' +
+    '</div></div>';
+}
+
+// ── Detail HTML ────────────────────────────────────────────────
+function playerDetail(p) {
+  var rebate = p.rake * (p.pct || 0) / 100;
+  var net = (p.pnl || 0) + rebate;   // 總輸贏 + 退水 = 實際結算
+  var pc = (p.pnl || 0) >= 0 ? 'pos' : 'neg';
+  var nc = net >= 0 ? 'pos' : 'neg';
+  return '<div class="drow"><span class="dlbl">總輸贏（純輸贏）</span><span class="dval ' + pc + '">$' + fmt(p.pnl || 0) + '</span></div>' +
+    '<div class="drow"><span class="dlbl">應退水（' + (p.pct||0) + '%）</span><span class="dval neu">+ $' + fmt(rebate) + '</span></div>' +
+    '<div class="drow"><span class="dlbl" style="color:var(--text);font-weight:700">實際結算</span><span class="dval big ' + nc + '">$' + fmt(net) + '</span></div>';
+}
+
+function agentDetail(agentId, d) {
+  var totalPnl = d.players.reduce(function(sum, p) { return sum + (p.pnl || 0); }, 0);
+  var totalRebate = calcRebate(d);
+  var net = totalPnl + totalRebate;   // 總輸贏 + 退水
+  var pc = totalPnl >= 0 ? 'pos' : 'neg';
+  var nc = net >= 0 ? 'pos' : 'neg';
+  return '<div class="drow"><span class="dlbl">區域總輸贏</span><span class="dval ' + pc + '">$' + fmt(totalPnl) + '</span></div>' +
+    '<div class="drow"><span class="dlbl">應退水總額</span><span class="dval neu">+ $' + fmt(totalRebate) + '</span></div>' +
+    '<div class="drow"><span class="dlbl" style="color:var(--text);font-weight:700">區域實際結算</span><span class="dval big ' + nc + '">$' + fmt(net) + '</span></div>';
+}
+
+// ── Event Delegation ───────────────────────────────────────────
+function bindEvents() {
+  var out = document.getElementById('out');
+  // Remove old listener by cloning
+  var newOut = out.cloneNode(true);
+  out.parentNode.replaceChild(newOut, out);
+  newOut.addEventListener('click', handleClick);
+
+  // Close move menus on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.move-wrap')) closeMenus();
+  });
+}
+
+function handleClick(e) {
+  var el = e.target;
+  // Walk up to find data-action
+  var node = el;
+  while (node && node !== document) {
+    var action = node.dataset && node.dataset.action;
+    if (action) {
+      e.stopPropagation();
+      if (action === 'toggle-agent') {
+        var sa = node.dataset.agent;
+        var dp = document.getElementById('adp_' + sa);
+        var xi = document.getElementById('xi_' + sa);
+        if (dp) { var o = dp.classList.toggle('open'); if (xi) xi.classList.toggle('open', o); }
+      } else if (action === 'toggle-player') {
+        var sp = node.dataset.sp;
+        var dp2 = document.getElementById('pdp_' + sp);
+        var xi2 = document.getElementById('pxi_' + sp);
+        if (dp2) { var o2 = dp2.classList.toggle('open'); if (xi2) xi2.classList.toggle('open', o2); }
+      } else if (action === 'toggle-move') {
+        var sp2 = node.dataset.sp;
+        var mm = document.getElementById('mm_' + sp2);
+        if (mm) { var wasOpen = mm.classList.contains('open'); closeMenus(); if (!wasOpen) mm.classList.add('open'); }
+      } else if (action === 'move-player') {
+        var fromKey = findKey(node.dataset.from);
+        var toKey = findKey(node.dataset.to);
+        var idx = parseInt(node.dataset.idx, 10);
+        closeMenus();
+        if (fromKey && toKey && fromKey !== toKey) {
+          var player = grouped[fromKey].players.splice(idx, 1)[0];
+          grouped[toKey].players.push(player);
+          renderAll();
+        }
+      } else if (action === 'pct') {
+        var key = findKey(node.dataset.agent);
+        var i = parseInt(node.dataset.idx, 10);
+        var delta = parseInt(node.dataset.delta, 10);
+        if (key && grouped[key] && grouped[key].players[i]) {
+          var p = grouped[key].players[i];
+          p.pct = Math.min(100, Math.max(0, (p.pct || 0) + delta));
+          var sp3 = s(key + '_' + i);
+          var pv = document.getElementById('pv_' + sp3);
+          var pa = document.getElementById('pa_' + sp3);
+          if (pv) pv.textContent = p.pct + '%';
+          if (pa) pa.textContent = '$' + fmt(p.rake * p.pct / 100);
+          // update agent subtotal
+          var agtEl = document.getElementById('agt_' + s(key));
+          if (agtEl) agtEl.textContent = fmt(calcRebate(grouped[key]));
+          refreshSummary();
+          // refresh detail panel if open
+          var sp4 = s(key + '_' + i);
+          var dpEl = document.getElementById('pdp_' + sp4);
+          if (dpEl && dpEl.classList.contains('open')) dpEl.innerHTML = playerDetail(p);
+        }
+      } else if (action === 'mycut') {
+        var d2 = parseInt(node.dataset.delta, 10);
+        myCutPct = Math.min(100, Math.max(0, myCutPct + d2));
+        var mv = document.getElementById('mycut_v');
+        if (mv) mv.textContent = myCutPct + '%';
+        refreshSummary();
+      } else if (action === 'set50') {
+        // 一鍵設定所有玩家退水為 50%
+        Object.keys(grouped).forEach(function(agentId) {
+          grouped[agentId].players.forEach(function(p) { p.pct = 50; });
+        });
+        renderAll();
+      }
+      return;
+    }
+    node = node.parentNode;
+  }
+}
+
+function closeMenus() {
+  document.querySelectorAll('.move-menu.open').forEach(function(m) { m.classList.remove('open'); });
+}
+
+function refreshSummary() {
+  var totalRebate = 0, totalRake = 0;
+  Object.values(grouped).forEach(function(d) { totalRebate += calcRebate(d); totalRake += calcRake(d); });
+  var e1 = document.getElementById('s_rake'), e2 = document.getElementById('s_rebate'), e3 = document.getElementById('s_mycut');
+  if (e1) e1.textContent = fmt(totalRake);
+  if (e2) e2.textContent = fmt(totalRebate);
+  if (e3) e3.textContent = fmt(totalRebate * myCutPct / 100);
+}
+
+// ── Drag (desktop) ─────────────────────────────────────────────
+function setupDrag() {
+  document.querySelectorAll('.drag-handle').forEach(function(h) {
+    var row = h.closest('.player-row');
+    if (!row) return;
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', function(e) {
+      var block = row.closest('.agent-block');
+      if (!block) return;
+      var sa = block.dataset.agent;
+      var list = document.getElementById('pl_' + sa);
+      var rows = list ? list.querySelectorAll('.player-row') : [];
+      var idx = -1;
+      rows.forEach(function(r, i) { if (r === row) idx = i; });
+      if (idx < 0) return;
+      dragState = { sa: sa, idx: idx };
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(function() { row.classList.add('dragging'); }, 0);
+    });
+    row.addEventListener('dragend', function() {
+      row.classList.remove('dragging');
+      document.querySelectorAll('.agent-block.drag-over').forEach(function(b) { b.classList.remove('drag-over'); });
+      dragState = null;
+    });
+  });
+
+  document.querySelectorAll('.agent-block').forEach(function(block) {
+    block.addEventListener('dragover', function(e) { e.preventDefault(); block.classList.add('drag-over'); });
+    block.addEventListener('dragleave', function(e) { if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over'); });
+    block.addEventListener('drop', function(e) {
+      e.preventDefault();
+      block.classList.remove('drag-over');
+      if (!dragState) return;
+      var toSa = block.dataset.agent;
+      if (toSa === dragState.sa) return;
+      var fromKey = findKey(dragState.sa), toKey = findKey(toSa);
+      if (!fromKey || !toKey) return;
+      var pl = grouped[fromKey].players.splice(dragState.idx, 1)[0];
+      grouped[toKey].players.push(pl);
+      dragState = null;
+      renderAll();
+    });
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+function findKey(safeId) {
+  if (grouped[safeId]) return safeId;
+  var keys = Object.keys(grouped);
+  for (var i = 0; i < keys.length; i++) { if (s(keys[i]) === safeId) return keys[i]; }
+  return null;
+}
+function calcRebate(d) { return d.players.reduce(function(sum, p) { return sum + p.rake * (p.pct || 0) / 100; }, 0); }
+function calcRake(d) { return d.players.reduce(function(sum, p) { return sum + p.rake; }, 0); }
+function fmt(n) { return parseFloat(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function s(str) { return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
+
+loadKey();
+</script>
+</body>
+</html>
