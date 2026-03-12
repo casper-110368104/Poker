@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退水試算</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+:root{--bg:#0a0a0a;--bg2:#111;--gold:#c9a84c;--gold2:#f0d080;--text:#f0f0f0;--muted:#555;--red:#ff4d4d;--green:#4dff91;--border:#222;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;max-width:520px;margin:0 auto;padding:16px 14px 60px;min-height:100vh;}
+
+/* Header */
+.hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:12px;margin-bottom:16px;}
+.hdr-title{color:var(--gold);font-weight:700;font-size:15px;letter-spacing:1px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.key-status{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+.key-dot{width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;transition:background .3s;}
+.key-dot.on{background:var(--green);}
+.gear-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;}
+.gear-btn:active{background:#333;}
+
+/* Settings overlay */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:998;}
+.overlay.show{display:block;}
+.settings-panel{display:none;position:fixed;top:0;right:0;height:100%;width:300px;max-width:88vw;background:#141414;border-left:1px solid #2a2a2a;z-index:999;padding:20px 18px;overflow-y:auto;}
+.settings-panel.show{display:block;}
+.settings-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #2a2a2a;padding-bottom:12px;}
+.settings-hdr span{color:var(--gold);font-weight:700;font-size:15px;}
+.close-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted);cursor:pointer;}
+.close-btn:active{background:#333;}
+.card-label{font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase;}
+.key-row{display:flex;gap:8px;}
+.key-input{flex:1;min-width:0;background:#0d0d0d;border:1px solid #333;border-radius:8px;color:var(--text);padding:12px;font-size:14px;font-family:monospace;outline:none;}
+.key-input:focus{border-color:var(--gold);}
+.save-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;color:var(--gold);padding:0 16px;font-size:13px;font-weight:700;white-space:nowrap;height:48px;min-width:60px;cursor:pointer;}
+.save-btn:active{background:#2a2a2a;}
+.key-hint{font-size:10px;color:#444;margin-top:8px;line-height:1.6;}
+.key-hint a{color:#666;}
+
+/* Upload */
+.upload-btn{background:linear-gradient(135deg,var(--gold),#a07830);color:#000;border:none;border-radius:25px;font-weight:700;width:100%;font-size:15px;letter-spacing:1px;font-family:'Noto Sans TC',sans-serif;height:56px;cursor:pointer;}
+.upload-btn:active{opacity:.85;}
+.upload-btn:disabled{opacity:.4;}
+.loading{text-align:center;margin-top:24px;color:var(--gold);font-size:14px;animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.preview-img{width:100%;border-radius:10px;margin-top:12px;border:1px solid #222;display:none;}
+
+/* Agent block */
+.agent-block{background:var(--bg2);border:2px solid var(--border);border-radius:12px;margin-top:14px;transition:border-color .15s;}
+.agent-block.drag-over{border-color:var(--gold);background:#151200;}
+.agent-hdr{background:#1a1a1a;padding:12px 14px;border-radius:10px 10px 0 0;user-select:none;}
+.agent-hdr-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.agent-name{font-weight:700;font-size:14px;color:var(--gold);}
+.agent-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.agent-totals{text-align:right;flex-shrink:0;padding-left:8px;}
+.agent-rake-lbl{font-size:11px;color:var(--muted);}
+.agent-rebate-lbl{font-size:13px;color:var(--gold2);font-weight:700;margin-top:2px;}
+.xicon{font-size:10px;color:var(--muted);margin-left:4px;display:inline-block;transition:transform .2s;}
+.xicon.open{transform:rotate(180deg);}
+.drop-hint{font-size:10px;color:transparent;text-align:center;padding:3px;}
+.agent-block.drag-over .drop-hint{color:var(--gold);}
+
+/* Detail panel */
+.dpanel{display:none;background:#0d0d08;border-top:1px solid #2a2a1a;padding:10px 14px;}
+.dpanel.open{display:block;}
+.drow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1a1a10;}
+.drow:last-child{border-bottom:none;}
+.dlbl{font-size:12px;color:var(--muted);}
+.dval{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
+.dval.pos{color:var(--green);}
+.dval.neg{color:var(--red);}
+.dval.neu{color:var(--gold2);}
+.dval.big{font-size:14px;}
+
+/* Player row */
+.player-row{border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:4px;transition:opacity .15s;}
+.player-row:last-child{border-bottom:none;}
+.player-row.agent-self{background:#1a1500;}
+.player-row.dragging{opacity:.25;}
+.drag-handle{color:#2a2a2a;font-size:14px;flex-shrink:0;padding:14px 5px;cursor:grab;}
+.drag-handle:hover{color:#555;}
+.ph{width:24px;flex-shrink:0;}
+.pinfo{flex:1;min-width:0;padding:10px 4px;cursor:pointer;}
+.pnick{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pid{font-size:10px;color:var(--muted);margin-top:1px;}
+.prake{font-size:11px;color:#555;margin-top:2px;}
+.agent-tag{font-size:10px;color:var(--gold);opacity:.7;}
+
+/* Move menu */
+.move-wrap{position:relative;flex-shrink:0;padding:4px 2px;}
+.move-btn{background:#1a1a1a;border:1px solid #333;border-radius:6px;color:var(--muted);font-size:11px;cursor:pointer;white-space:nowrap;width:54px;height:40px;display:flex;align-items:center;justify-content:center;}
+.move-btn:active{background:#2a2a2a;color:var(--text);}
+.move-menu{display:none;position:absolute;right:0;top:calc(100% + 2px);background:#1e1e1e;border:1px solid #333;border-radius:8px;z-index:300;min-width:150px;box-shadow:0 6px 24px rgba(0,0,0,.8);max-height:220px;overflow-y:auto;}
+.move-menu.open{display:block;}
+.move-opt{padding:0 14px;font-size:13px;cursor:pointer;color:var(--text);border-bottom:1px solid #2a2a2a;display:flex;align-items:center;height:46px;}
+.move-opt:last-child{border-bottom:none;}
+.move-opt:active{background:#2a2a2a;}
+.move-opt.cur{color:var(--gold);}
+
+/* Pct control */
+.pct-ctrl{display:flex;align-items:center;gap:2px;flex-shrink:0;padding:4px 2px;}
+.pct-btn{width:38px;height:42px;min-width:38px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:var(--gold);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.pct-btn:active{background:#333;}
+.pct-val{width:36px;text-align:center;color:var(--gold2);font-weight:700;font-size:12px;}
+.rebate-amt{min-width:64px;text-align:right;color:var(--gold);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;padding-right:10px;flex-shrink:0;}
+
+/* Summary */
+.summary{background:#101008;border:1px solid #2a2a1a;border-radius:14px;margin-top:20px;overflow:hidden;}
+.summary-title{background:#1a1a10;padding:10px 16px;font-size:11px;color:var(--gold);font-weight:700;letter-spacing:1px;border-bottom:1px solid #2a2a1a;}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;}
+.scell{padding:13px 16px;border-bottom:1px solid #1a1a10;}
+.scell:nth-child(odd){border-right:1px solid #1a1a10;}
+.scell:last-child,.scell:nth-last-child(2){border-bottom:none;}
+.slbl{font-size:10px;color:var(--muted);margin-bottom:4px;}
+.sval{font-size:17px;font-weight:700;color:var(--gold2);font-variant-numeric:tabular-nums;}
+.mycut-row{padding:12px 16px;border-top:1px solid #2a2a1a;display:flex;align-items:center;gap:8px;}
+.mycut-lbl{font-size:12px;color:var(--muted);flex:1;}
+.mycut-result{font-size:15px;font-weight:700;color:var(--green);min-width:80px;text-align:right;font-variant-numeric:tabular-nums;}
+.setbar{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#111;border-bottom:1px solid #1a1a1a;}
+.global-setbar{background:#0e0e0a;border:1px solid #2a2a1a;border-radius:10px;margin-bottom:4px;}
+.setbar-lbl{font-size:11px;color:var(--muted);flex:1;white-space:nowrap;}
+.setbar-apply{background:#1a2a1a;border:1px solid #2a5a2a;border-radius:6px;color:var(--green);font-size:12px;font-weight:700;cursor:pointer;padding:0 12px;height:36px;white-space:nowrap;flex-shrink:0;}
+.setbar-apply:active{background:#2a3a2a;}
+.agent-pct-wrap{display:flex;align-items:center;gap:4px;background:#1a1a10;border:1px solid #2a2a1a;border-radius:8px;padding:4px 8px;}
+
+/* agent header rows */
+.ahdr-row1{display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;}
+.ahdr-stats{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+.agent-rake-lbl{font-size:11px;color:var(--muted);}
+.agent-rebate-lbl{font-size:13px;color:var(--gold2);font-weight:700;}
+.ahdr-row2{display:flex;align-items:center;justify-content:center;gap:6px;padding-top:8px;border-top:1px solid #252510;margin-top:6px;}
+.apct-btn{width:32px!important;height:32px!important;min-width:32px!important;font-size:16px!important;padding:0!important;}
+.apct-val{width:40px;text-align:center;color:var(--gold2);font-weight:700;font-size:13px;}
+.apct-apply{height:32px;font-size:12px;padding:0 14px;}
+#debugOut{display:none;}
+#debugOut.show{display:block;background:#0a0a00;border:1px solid #333;border-radius:8px;padding:10px;font-size:10px;color:#888;font-family:monospace;white-space:pre-wrap;word-break:break-all;margin-top:12px;max-height:300px;overflow-y:auto;}
+.debug-toggle{background:#1a1a10;border:1px solid #333;border-radius:6px;color:#555;font-size:11px;padding:6px 12px;cursor:pointer;width:100%;margin-top:8px;display:none;}
+.debug-toggle.show{display:block;}
+.model-row{display:flex;gap:8px;margin-bottom:8px;}
+.model-opt{flex:1;background:#0d0d0d;border:1px solid #333;border-radius:10px;padding:10px 8px;cursor:pointer;text-align:center;transition:all .15s;}
+.model-opt:active{background:#1a1a1a;}
+.model-opt.active{border-color:var(--gold);background:#1a1500;}
+.model-name{display:block;color:var(--text);font-weight:700;font-size:13px;}
+.model-opt.active .model-name{color:var(--gold);}
+.model-desc{display:block;color:var(--muted);font-size:10px;margin-top:3px;}
+.model-hint{font-size:10px;color:#444;margin-top:4px;}
+.vrow{padding:10px 14px;font-size:13px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:8px;}
+.vrow:last-child{border-bottom:none;}
+.vok{background:#0a1a0a;color:var(--green);}
+.vwarn{background:#1a0e00;color:#ffaa44;}
+.error-box{background:#1a0a0a;border:1px solid #4a1010;border-radius:10px;padding:14px;margin-top:16px;color:var(--red);font-size:13px;line-height:1.7;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <span class="hdr-title">♠ 退水試算系統</span>
+  <div class="hdr-right">
+    <div class="key-status">
+      <div class="key-dot" id="keyDot"></div>
+      <span id="keyTxt">未設定 Key</span>
+    </div>
+    <button class="gear-btn" id="gearBtn">⚙️</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="settings-panel" id="settingsPanel">
+  <div class="settings-hdr">
+    <span>設定</span>
+    <button class="close-btn" id="closeBtn">✕</button>
+  </div>
+  <div class="card-label">Gemini API Key</div>
+  <div class="key-row">
+    <input type="password" class="key-input" id="keyInput" placeholder="AIza..." autocomplete="off">
+    <button class="save-btn" id="saveBtn">儲存</button>
+  </div>
+  <div class="key-hint">Key 僅存於本機瀏覽器，不上傳任何伺服器。<br>
+    <a href="https://aistudio.google.com/app/apikey" target="_blank">取得 Gemini API Key →</a>
+  </div>
+  <div class="card-label" style="margin-top:18px;">AI 模型</div>
+  <div class="model-row">
+    <button class="model-opt active" id="modelFlash" data-model="gemini-2.5-flash">
+      <span class="model-name">Flash</span>
+      <span class="model-desc">快速・免費額度多</span>
+    </button>
+    <button class="model-opt" id="modelPro" data-model="gemini-2.5-pro">
+      <span class="model-name">Pro ✦</span>
+      <span class="model-desc">更精準・較耗費用</span>
+    </button>
+  </div>
+  <div class="model-hint" id="modelHint">目前：gemini-2.5-flash</div>
+</div>
+
+<button class="upload-btn" id="uploadBtn">📷 導入報表圖片開始分析</button>
+<input type="file" id="fi" hidden accept="image/*">
+<img id="previewImg" class="preview-img">
+<div id="out"></div>
+<div id="validationBox" style="display:none;margin-top:12px;border-radius:10px;overflow:hidden;border:1px solid #2a2a2a;"></div>
+<button class="debug-toggle" id="debugToggle" onclick="toggleDebug()">▶ 顯示 AI 原始資料（除錯用）</button>
+<pre id="debugOut"></pre>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+var apiKey = '';
+var grouped = {};   // { agentKey: { nick, selfRake, selfPnl, players:[{id,nick,rake,pnl,pct,isSelf}] } }
+var myCutPct = 100;
+var dragState = null;
+var globalSetPct = 50;      // 全域一鍵設定預設值
+var currentModel = 'gemini-2.5-flash'; // 目前選擇的模型
+var agentSetPct = {};       // { safeAgentId: pct } 每個代理獨立的一鍵設定值
+
+// ── Settings panel (pure JS, no onclick strings) ────────────────
+document.getElementById('gearBtn').addEventListener('click', openSettings);
+document.getElementById('closeBtn').addEventListener('click', closeSettings);
+document.getElementById('overlay').addEventListener('click', closeSettings);
+document.getElementById('saveBtn').addEventListener('click', saveKey);
+document.querySelectorAll('.model-opt').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    currentModel = btn.dataset.model;
+    try { localStorage.setItem('gemini_model', currentModel); } catch(e) {}
+    document.querySelectorAll('.model-opt').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('modelHint').textContent = '目前：' + currentModel;
+  });
+});
+document.getElementById('uploadBtn').addEventListener('click', function() {
+  document.getElementById('fi').click();
+});
+document.getElementById('fi').addEventListener('change', run);
+
+function openSettings() {
+  document.getElementById('settingsPanel').classList.add('show');
+  document.getElementById('overlay').classList.add('show');
+}
+function closeSettings() {
+  document.getElementById('settingsPanel').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── Key ───────────────────────────────────────────────────────
+function loadKey() {
+  try { apiKey = localStorage.getItem('gemini_key') || ''; } catch(e) {}
+  try {
+    var saved = localStorage.getItem('gemini_model');
+    if (saved) {
+      currentModel = saved;
+      document.querySelectorAll('.model-opt').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.model === currentModel);
+      });
+      var hint = document.getElementById('modelHint');
+      if (hint) hint.textContent = '目前：' + currentModel;
+    }
+  } catch(e) {}
+  updateKeyUI();
+  if (apiKey) document.getElementById('keyInput').value = apiKey;
+}
+function saveKey() {
+  var v = document.getElementById('keyInput').value.trim();
+  if (!v) { alert('請輸入 API Key'); return; }
+  apiKey = v;
+  try { localStorage.setItem('gemini_key', v); } catch(e) {}
+  updateKeyUI();
+  closeSettings();
+  alert('✅ 已儲存！');
+}
+function updateKeyUI() {
+  document.getElementById('keyDot').classList.toggle('on', !!apiKey);
+  document.getElementById('keyTxt').textContent = apiKey ? 'Key 已設定' : '未設定 Key';
+}
+
+// ── Run ────────────────────────────────────────────────────────
+function run(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  if (!apiKey) { alert('請先在設定⚙️中輸入並儲存 Gemini API Key！'); return; }
+  var vbox = document.getElementById('validationBox'); if(vbox){vbox.style.display='none';vbox.innerHTML='';}
+  document.getElementById('previewImg').src = URL.createObjectURL(file);
+  document.getElementById('previewImg').style.display = 'block';
+  document.getElementById('out').innerHTML = '<div class="loading">⏳ 正在逐行分析，請稍候...</div>';
+  document.getElementById('uploadBtn').disabled = true;
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var b64 = ev.target.result.split(',')[1];
+    var prompt = [
+      '你是資料抄寫助手，任務分兩個步驟，請依序完成。',
+      '',
+      '【報表欄位說明（由左至右）】',
+      '  第1欄: 超代ID — 例如 6136-6764',
+      '  第2欄: 超代暱稱（忽略）',
+      '  第3欄: 代理ID — 可能空白，例如 1482-4619',
+      '  第4欄: 代理暱稱（忽略）',
+      '  第5欄: 國家/地區 — TW、HK 等（忽略）',
+      '  第6欄: Role — Player、Agent 或 Super Agent',
+      '  第7欄: 玩家ID',
+      '  第8欄: 玩家暱稱',
+      '  第9欄: 總輸贏 Total P&L — 保留正負號',
+      '  第10欄: Ring Game服務費 — 取正數',
+      '  第11欄以後: 忽略',
+      '',
+      '【步驟一：建立代理清單】',
+      '掃描整張表，找出所有 Role=Agent 或 Role=Super Agent 的行。',
+      '特徵：第3欄（代理ID）= 第7欄（玩家ID），即自己代理自己。',
+      '收集他們的第7欄ID成清單。',
+      '',
+      '【步驟二：逐行抄寫（含行號）】',
+      '對每一筆資料（忽略標題、TOTAL、額外交收明細）逐行輸出：',
+      '- n = 此行在報表中的實際行號（從1開始，標題列不算）',
+      '- c1 = 第1欄超代ID',
+      '- c3 = 第3欄代理ID（空白填null；填寫前先確認該ID在步驟一的代理清單中，不在清單就填null）',
+      '- c6 = 第6欄Role',
+      '- c7 = 第7欄玩家ID',
+      '- c8 = 第8欄暱稱',
+      '- c9 = 第9欄數字',
+      '- rake = 第10欄數字',
+      '',
+      '【步驟三：讀取 TOTAL 列】',
+      '找到報表最底部的 TOTAL 合計行，讀取：',
+      '- total_pnl = TOTAL 列的第9欄（總輸贏合計）',
+      '- total_rake = TOTAL 列的第10欄（Ring Game服務費合計）',
+      '',
+      '輸出純 JSON，不要 markdown：',
+      '{"agents":["代理ID"],"rows":[{"n":行號,"c1":"","c3":"或null","c6":"","c7":"","c8":"","c9":0,"rake":0}],"total_pnl":數字,"total_rake":數字}'
+    ].join('\n');
+
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/' + currentModel + ':generateContent?key=' + apiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: file.type, data: b64 } }] }],
+        generationConfig: { temperature: 0 }
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error('API 錯誤: ' + data.error.message);
+      var txt = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
+      if (!txt) throw new Error('AI 未回傳內容');
+      var m = txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('無法解析格式：' + txt.substring(0,200));
+      var parsed = JSON.parse(m[0]);
+      // Show debug info in page
+      window._lastAiRows = parsed.rows;
+      document.getElementById('debugOut').textContent = JSON.stringify(parsed, null, 2);
+      // Pass agents list to buildGroups for validation
+      grouped = buildGroups(parsed.rows, parsed.agents || []);
+
+      // ── Row number gap detection ──
+      var warnings = [];
+      var rows = parsed.rows;
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i].n && rows[i-1].n && rows[i].n !== rows[i-1].n + 1) {
+          warnings.push('⚠️ 行號不連續：第' + rows[i-1].n + '行後跳到第' + rows[i].n + '行，可能有漏讀');
+        }
+      }
+
+      // ── TOTAL validation ──
+      if (parsed.total_pnl !== undefined && parsed.total_rake !== undefined) {
+        var sumPnl = rows.reduce(function(s,r){ return s + (parseFloat(r.c9)||0); }, 0);
+        var sumRake = rows.reduce(function(s,r){ return s + (parseFloat(r.rake)||0); }, 0);
+        var diffPnl = Math.abs(sumPnl - parsed.total_pnl);
+        var diffRake = Math.abs(sumRake - parsed.total_rake);
+        if (diffPnl > 1) warnings.push('⚠️ 總輸贏加總 ' + fmt(sumPnl) + ' 與報表 TOTAL ' + fmt(parsed.total_pnl) + '（差 ' + fmt(diffPnl) + '）');
+        else warnings.push('✅ 總輸贏驗證通過（' + fmt(sumPnl) + '）');
+        if (diffRake > 1) warnings.push('⚠️ 服務費加總 ' + fmt(sumRake) + ' 與報表 TOTAL ' + fmt(parsed.total_rake) + '（差 ' + fmt(diffRake) + '）');
+        else warnings.push('✅ 服務費驗證通過（' + fmt(sumRake) + '）');
+      }
+
+      if (warnings.length) showValidation(warnings);
+      if (!parsed.rows || !parsed.rows.length) throw new Error('未找到資料');
+      myCutPct = 100;
+      agentSetPct = {};
+      renderAll();
+    })
+    .catch(function(err) {
+      document.getElementById('out').innerHTML = '<div class="error-box"><b>⚠ 錯誤</b><br>' + esc(err.message) + '</div>';
+    })
+    .finally(function() {
+      document.getElementById('uploadBtn').disabled = false;
+      document.getElementById('fi').value = '';
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Build Groups ───────────────────────────────────────────────
+// AI 只抄寫原始欄位 c1~c7，分類邏輯完全在這裡處理
+function buildGroups(rows, agentsList) {
+  // Build a Set of known agent IDs from AI's step-1 scan
+  var knownAgents = {};
+  (agentsList || []).forEach(function(id) { if (id) knownAgents[String(id)] = true; });
+  var res = {};
+
+  // 正規化每行：對應實際欄位，程式端判斷代理/玩家
+  // 欄1=超代ID, 欄3=代理ID, 欄6=Role, 欄7=玩家ID, 欄8=暱稱, 欄9=P&L, rake=服務費
+  var norm = rows.map(function(r) {
+    var superAgentId = val(r.c1);   // 超代ID
+    var agentId      = val(r.c3);   // 代理ID（可能空白）
+    // If agentsList was provided, only trust c3 if it's a known agent
+    if (agentId && Object.keys(knownAgents).length > 0 && !knownAgents[agentId]) agentId = null;
+    var pid          = val(r.c7);   // 玩家ID
+    var nick         = String(r.c8 || '').trim();
+    var role         = String(r.c6 || '').trim(); // Player / Agent / Super Agent
+    var rake         = Math.abs(parseFloat(r.rake) || 0);
+    var pnl          = parseFloat(r.c9) || 0;
+
+    if (!pid) return null;
+
+    // 程式端判斷是否為代理：
+    // 1. Role = Agent 或 Super Agent
+    // 2. 或 agentId = pid（自己代理自己）
+    var isAgent = (role === 'Agent' || role === 'Super Agent') || (agentId && agentId === pid);
+
+    // 判斷此人的上線：
+    // 代理 → 沒有 owner（自己就是頂層或中層代理）
+    // 玩家 + agentId有值且≠pid → 上線是 agentId
+    // 玩家 + agentId空白 → 上線是超代 superAgentId
+    var owner = null;
+    if (!isAgent) {
+      if (agentId && agentId !== pid) owner = agentId;
+      else if (superAgentId) owner = superAgentId;
+    }
+
+    return { pid: pid, nick: nick, superAgent: superAgentId, owner: owner, isAgent: isAgent, rake: rake, pnl: pnl };
+  }).filter(function(r) { return r; });
+
+  // Step 1: 建立代理節點
+  norm.forEach(function(r) {
+    if (!r.isAgent) return;
+    if (!res[r.pid]) {
+      res[r.pid] = { nick: r.nick || r.pid, selfRake: r.rake, selfPnl: r.pnl, players: [] };
+    } else {
+      res[r.pid].nick = r.nick || r.pid;
+      res[r.pid].selfRake = r.rake;
+      res[r.pid].selfPnl = r.pnl;
+    }
+  });
+
+  // Step 2: 代理本人加入自己的 players 第一位
+  Object.keys(res).forEach(function(aid) {
+    var d = res[aid];
+    d.players.push({ id: aid, nick: d.nick, rake: d.selfRake, pnl: d.selfPnl, pct: 30, isSelf: true });
+  });
+
+  // Step 3: 分配玩家
+  norm.forEach(function(r) {
+    if (r.isAgent || !r.owner) return;
+    var owner = r.owner;
+    if (!res[owner]) {
+      // 代理不在清單中，建立虛擬節點
+      res[owner] = { nick: owner, selfRake: 0, selfPnl: 0, players: [
+        { id: owner, nick: owner, rake: 0, pnl: 0, pct: 30, isSelf: true }
+      ]};
+    }
+    var dup = res[owner].players.some(function(p) { return p.id === r.pid; });
+    if (!dup) {
+      res[owner].players.push({ id: r.pid, nick: r.nick || r.pid, rake: r.rake, pnl: r.pnl, pct: 30, isSelf: false });
+    }
+  });
+
+  return res;
+}
+
+// 空白/null 值處理
+function val(v) {
+  if (!v || v === 'null' || String(v).trim() === '') return null;
+  return String(v).trim();
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function renderAll() {
+  var frag = '';
+
+  // ── 全域一鍵設定列 ──
+  frag += '<div class="setbar global-setbar">';
+  frag += '<span class="setbar-lbl">⚡ 全部一鍵設定</span>';
+  frag += '<div class="pct-ctrl">';
+  frag += '<button class="pct-btn" data-action="global-pct-step" data-delta="-5">−</button>';
+  frag += '<div class="pct-val" id="global_pct_v" style="width:42px">' + globalSetPct + '%</div>';
+  frag += '<button class="pct-btn" data-action="global-pct-step" data-delta="5">+</button>';
+  frag += '</div>';
+  frag += '<button class="setbar-apply" data-action="set-all">套用</button>';
+  frag += '</div>';
+
+  Object.keys(grouped).forEach(function(agentId) {
+    var d = grouped[agentId];
+    var sa = s(agentId);
+    frag += '<div class="agent-block" data-agent="' + sa + '">';
+    var apct = agentSetPct[sa] !== undefined ? agentSetPct[sa] : globalSetPct;
+    frag += '<div class="agent-hdr">';
+    /* Row 1: name left, rake+rebate right */
+    frag += '<div class="ahdr-row1" data-action="toggle-agent" data-agent="' + sa + '">';
+    frag += '<div><div class="agent-name">代理：' + esc(d.nick) + ' <span class="xicon" id="xi_' + sa + '">▼</span></div>';
+    frag += '<div class="agent-sub">' + esc(agentId) + ' ／ ' + d.players.length + ' 人</div></div>';
+    frag += '<div class="ahdr-stats"><span class="agent-rake-lbl">Rake $' + fmt(calcRake(d)) + '</span>';
+    frag += '<span class="agent-rebate-lbl">退水 $<span id="agt_' + sa + '">' + fmt(calcRebate(d)) + '</span></span></div>';
+    frag += '</div>';
+    /* Row 2: pct controls centered, stopPropagation via data-nopropagate */
+    frag += '<div class="ahdr-row2" data-nopropagate="1">';
+    frag += '<button class="apct-btn pct-btn" data-action="agent-pct-step" data-agent="' + sa + '" data-delta="-5">−</button>';
+    frag += '<span class="pct-val apct-val" id="apct_v_' + sa + '">' + apct + '%</span>';
+    frag += '<button class="apct-btn pct-btn" data-action="agent-pct-step" data-agent="' + sa + '" data-delta="5">+</button>';
+    frag += '<button class="setbar-apply apct-apply" data-action="set-agent" data-agent="' + sa + '">一鍵套用</button>';
+    frag += '</div>';
+    frag += '<div class="dpanel" id="adp_' + sa + '">' + agentDetail(agentId, d) + '</div>';
+    frag += '</div>';
+    frag += '<div class="drop-hint">📥 放開以移入此代理</div>';
+    frag += '<div class="players-list" id="pl_' + sa + '">';
+    d.players.forEach(function(p, idx) { frag += playerRow(agentId, idx, p); });
+    frag += '</div></div>';
+  });
+  frag += summaryHTML();
+  document.getElementById('out').innerHTML = frag;
+  bindEvents();
+  setupDrag();
+  showDebugBtn();
+}
+
+function playerRow(agentId, idx, p) {
+  var sa = s(agentId);
+  var sp = s(agentId + '_' + idx);
+  var rebate = p.rake * (p.pct || 0) / 100;
+  var r = '';
+  r += '<div class="player-row' + (p.isSelf ? ' agent-self' : '') + '" id="pr_' + sp + '" data-agent="' + sa + '" data-idx="' + idx + '">';
+  r += p.isSelf ? '<span class="ph"></span>' : '<span class="drag-handle">⠿</span>';
+  // Info — clickable via delegation
+  r += '<div class="pinfo" data-action="toggle-player" data-sp="' + sp + '">';
+  r += '<div class="pnick">' + esc(p.nick || '-') + (p.isSelf ? ' <span class="agent-tag">(代理)</span>' : '') + ' <span class="xicon" id="pxi_' + sp + '" style="font-size:9px">▼</span></div>';
+  r += '<div class="pid">' + esc(p.id || '') + '</div>';
+  r += '<div class="prake">Rake $' + fmt(p.rake) + '</div>';
+  r += '<div class="dpanel" id="pdp_' + sp + '">' + playerDetail(p) + '</div>';
+  r += '</div>';
+  // Move menu
+  if (!p.isSelf) {
+    var opts = '';
+    Object.keys(grouped).forEach(function(aid) {
+      var isCur = aid === agentId;
+      opts += '<div class="move-opt' + (isCur ? ' cur' : '') + '" data-action="move-player" data-from="' + sa + '" data-to="' + s(aid) + '" data-idx="' + idx + '">' + (isCur ? '✓ ' : '') + esc(grouped[aid].nick) + '</div>';
+    });
+    r += '<div class="move-wrap"><button class="move-btn" data-action="toggle-move" data-sp="' + sp + '">移至▾</button>';
+    r += '<div class="move-menu" id="mm_' + sp + '">' + opts + '</div></div>';
+  }
+  // Pct
+  r += '<div class="pct-ctrl">';
+  r += '<button class="pct-btn" data-action="pct" data-agent="' + sa + '" data-idx="' + idx + '" data-delta="-5">−</button>';
+  r += '<div class="pct-val" id="pv_' + sp + '">' + (p.pct || 0) + '%</div>';
+  r += '<button class="pct-btn" data-action="pct" data-agent="' + sa + '" data-idx="' + idx + '" data-delta="5">+</button>';
+  r += '</div>';
+  r += '<div class="rebate-amt" id="pa_' + sp + '">$' + fmt(rebate) + '</div>';
+  r += '</div>';
+  return r;
+}
+
+function summaryHTML() {
+  var totalRake = 0, totalRebate = 0;
+  Object.values(grouped).forEach(function(d) { totalRake += calcRake(d); totalRebate += calcRebate(d); });
+  return '<div class="summary">' +
+    '<div class="summary-title">📊 總覽</div>' +
+    '<div class="summary-grid">' +
+    '<div class="scell"><div class="slbl">總 RAKE</div><div class="sval">$<span id="s_rake">' + fmt(totalRake) + '</span></div></div>' +
+    '<div class="scell"><div class="slbl">總退水金額</div><div class="sval">$<span id="s_rebate">' + fmt(totalRebate) + '</span></div></div>' +
+    '</div>' +
+    '<div class="mycut-row">' +
+    '<div class="mycut-lbl">我實際拿到</div>' +
+    '<div class="pct-ctrl">' +
+    '<button class="pct-btn" data-action="mycut" data-delta="-5">−</button>' +
+    '<div class="pct-val" id="mycut_v" style="width:40px">' + myCutPct + '%</div>' +
+    '<button class="pct-btn" data-action="mycut" data-delta="5">+</button>' +
+    '</div>' +
+    '<div class="mycut-result">$<span id="s_mycut">' + fmt(totalRebate * myCutPct / 100) + '</span></div>' +
+    '</div></div>';
+}
+
+// ── Detail HTML ────────────────────────────────────────────────
+function playerDetail(p) {
+  var rebate = p.rake * (p.pct || 0) / 100;
+  var net = (p.pnl || 0) + rebate;   // 總輸贏 + 退水 = 實際結算
+  var pc = (p.pnl || 0) >= 0 ? 'pos' : 'neg';
+  var nc = net >= 0 ? 'pos' : 'neg';
+  return '<div class="drow"><span class="dlbl">總輸贏（純輸贏）</span><span class="dval ' + pc + '">$' + fmt(p.pnl || 0) + '</span></div>' +
+    '<div class="drow"><span class="dlbl">應退水（' + (p.pct||0) + '%）</span><span class="dval neu">+ $' + fmt(rebate) + '</span></div>' +
+    '<div class="drow"><span class="dlbl" style="color:var(--text);font-weight:700">實際結算</span><span class="dval big ' + nc + '">$' + fmt(net) + '</span></div>';
+}
+
+function agentDetail(agentId, d) {
+  var totalPnl = d.players.reduce(function(sum, p) { return sum + (p.pnl || 0); }, 0);
+  var totalRebate = calcRebate(d);
+  var net = totalPnl + totalRebate;   // 總輸贏 + 退水
+  var pc = totalPnl >= 0 ? 'pos' : 'neg';
+  var nc = net >= 0 ? 'pos' : 'neg';
+  return '<div class="drow"><span class="dlbl">區域總輸贏</span><span class="dval ' + pc + '">$' + fmt(totalPnl) + '</span></div>' +
+    '<div class="drow"><span class="dlbl">應退水總額</span><span class="dval neu">+ $' + fmt(totalRebate) + '</span></div>' +
+    '<div class="drow"><span class="dlbl" style="color:var(--text);font-weight:700">區域實際結算</span><span class="dval big ' + nc + '">$' + fmt(net) + '</span></div>';
+}
+
+// ── Event Delegation ───────────────────────────────────────────
+function bindEvents() {
+  var out = document.getElementById('out');
+  // Remove old listener by cloning
+  var newOut = out.cloneNode(true);
+  out.parentNode.replaceChild(newOut, out);
+  newOut.addEventListener('click', handleClick);
+
+  // Close move menus on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.move-wrap')) closeMenus();
+  });
+}
+
+function handleClick(e) {
+  var el = e.target;
+  // If click is inside a nopropagate zone, don't let it bubble to toggle-agent
+  var node = el;
+  while (node && node !== document) {
+    if (node.dataset && node.dataset.nopropagate) { e.stopPropagation(); break; }
+    node = node.parentNode;
+  }
+  // Walk up to find data-action
+  node = el;
+  while (node && node !== document) {
+    var action = node.dataset && node.dataset.action;
+    if (action) {
+      e.stopPropagation();
+      if (action === 'toggle-agent') {
+        var sa = node.dataset.agent;
+        var dp = document.getElementById('adp_' + sa);
+        var xi = document.getElementById('xi_' + sa);
+        if (dp) { var o = dp.classList.toggle('open'); if (xi) xi.classList.toggle('open', o); }
+      } else if (action === 'toggle-player') {
+        var sp = node.dataset.sp;
+        var dp2 = document.getElementById('pdp_' + sp);
+        var xi2 = document.getElementById('pxi_' + sp);
+        if (dp2) { var o2 = dp2.classList.toggle('open'); if (xi2) xi2.classList.toggle('open', o2); }
+      } else if (action === 'toggle-move') {
+        var sp2 = node.dataset.sp;
+        var mm = document.getElementById('mm_' + sp2);
+        if (mm) { var wasOpen = mm.classList.contains('open'); closeMenus(); if (!wasOpen) mm.classList.add('open'); }
+      } else if (action === 'move-player') {
+        var fromKey = findKey(node.dataset.from);
+        var toKey = findKey(node.dataset.to);
+        var idx = parseInt(node.dataset.idx, 10);
+        closeMenus();
+        if (fromKey && toKey && fromKey !== toKey) {
+          var player = grouped[fromKey].players.splice(idx, 1)[0];
+          grouped[toKey].players.push(player);
+          renderAll();
+        }
+      } else if (action === 'pct') {
+        var key = findKey(node.dataset.agent);
+        var i = parseInt(node.dataset.idx, 10);
+        var delta = parseInt(node.dataset.delta, 10);
+        if (key && grouped[key] && grouped[key].players[i]) {
+          var p = grouped[key].players[i];
+          p.pct = Math.min(100, Math.max(0, (p.pct || 0) + delta));
+          var sp3 = s(key + '_' + i);
+          var pv = document.getElementById('pv_' + sp3);
+          var pa = document.getElementById('pa_' + sp3);
+          if (pv) pv.textContent = p.pct + '%';
+          if (pa) pa.textContent = '$' + fmt(p.rake * p.pct / 100);
+          // update agent subtotal
+          var agtEl = document.getElementById('agt_' + s(key));
+          if (agtEl) agtEl.textContent = fmt(calcRebate(grouped[key]));
+          refreshSummary();
+          // refresh detail panel if open
+          var sp4 = s(key + '_' + i);
+          var dpEl = document.getElementById('pdp_' + sp4);
+          if (dpEl && dpEl.classList.contains('open')) dpEl.innerHTML = playerDetail(p);
+        }
+      } else if (action === 'mycut') {
+        var d2 = parseInt(node.dataset.delta, 10);
+        myCutPct = Math.min(100, Math.max(0, myCutPct + d2));
+        var mv = document.getElementById('mycut_v');
+        if (mv) mv.textContent = myCutPct + '%';
+        refreshSummary();
+      } else if (action === 'global-pct-step') {
+        var delta = parseInt(node.dataset.delta, 10);
+        globalSetPct = Math.min(100, Math.max(0, globalSetPct + delta));
+        var el = document.getElementById('global_pct_v');
+        if (el) el.textContent = globalSetPct + '%';
+      } else if (action === 'set-all') {
+        Object.keys(grouped).forEach(function(agentId) {
+          grouped[agentId].players.forEach(function(p) { p.pct = globalSetPct; });
+        });
+        agentSetPct = {};
+        renderAll();
+      } else if (action === 'agent-pct-step') {
+        var sa2 = node.dataset.agent;
+        if (agentSetPct[sa2] === undefined) agentSetPct[sa2] = globalSetPct;
+        var delta2 = parseInt(node.dataset.delta, 10);
+        agentSetPct[sa2] = Math.min(100, Math.max(0, agentSetPct[sa2] + delta2));
+        var el2 = document.getElementById('apct_v_' + sa2);
+        if (el2) el2.textContent = agentSetPct[sa2] + '%';
+      } else if (action === 'set-agent') {
+        var sa3 = node.dataset.agent;
+        var key3 = findKey(sa3);
+        var pct3 = agentSetPct[sa3] !== undefined ? agentSetPct[sa3] : globalSetPct;
+        if (key3 && grouped[key3]) {
+          grouped[key3].players.forEach(function(p) { p.pct = pct3; });
+          renderAll();
+        }
+      }
+      return;
+    }
+    node = node.parentNode;
+  }
+}
+
+function closeMenus() {
+  document.querySelectorAll('.move-menu.open').forEach(function(m) { m.classList.remove('open'); });
+}
+
+function refreshSummary() {
+  var totalRebate = 0, totalRake = 0;
+  Object.values(grouped).forEach(function(d) { totalRebate += calcRebate(d); totalRake += calcRake(d); });
+  var e1 = document.getElementById('s_rake'), e2 = document.getElementById('s_rebate'), e3 = document.getElementById('s_mycut');
+  if (e1) e1.textContent = fmt(totalRake);
+  if (e2) e2.textContent = fmt(totalRebate);
+  if (e3) e3.textContent = fmt(totalRebate * myCutPct / 100);
+}
+
+// ── Drag (desktop) ─────────────────────────────────────────────
+function setupDrag() {
+  document.querySelectorAll('.drag-handle').forEach(function(h) {
+    var row = h.closest('.player-row');
+    if (!row) return;
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', function(e) {
+      var block = row.closest('.agent-block');
+      if (!block) return;
+      var sa = block.dataset.agent;
+      var list = document.getElementById('pl_' + sa);
+      var rows = list ? list.querySelectorAll('.player-row') : [];
+      var idx = -1;
+      rows.forEach(function(r, i) { if (r === row) idx = i; });
+      if (idx < 0) return;
+      dragState = { sa: sa, idx: idx };
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(function() { row.classList.add('dragging'); }, 0);
+    });
+    row.addEventListener('dragend', function() {
+      row.classList.remove('dragging');
+      document.querySelectorAll('.agent-block.drag-over').forEach(function(b) { b.classList.remove('drag-over'); });
+      dragState = null;
+    });
+  });
+
+  document.querySelectorAll('.agent-block').forEach(function(block) {
+    block.addEventListener('dragover', function(e) { e.preventDefault(); block.classList.add('drag-over'); });
+    block.addEventListener('dragleave', function(e) { if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over'); });
+    block.addEventListener('drop', function(e) {
+      e.preventDefault();
+      block.classList.remove('drag-over');
+      if (!dragState) return;
+      var toSa = block.dataset.agent;
+      if (toSa === dragState.sa) return;
+      var fromKey = findKey(dragState.sa), toKey = findKey(toSa);
+      if (!fromKey || !toKey) return;
+      var pl = grouped[fromKey].players.splice(dragState.idx, 1)[0];
+      grouped[toKey].players.push(pl);
+      dragState = null;
+      renderAll();
+    });
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+function findKey(safeId) {
+  if (grouped[safeId]) return safeId;
+  var keys = Object.keys(grouped);
+  for (var i = 0; i < keys.length; i++) { if (s(keys[i]) === safeId) return keys[i]; }
+  return null;
+}
+function calcRebate(d) { return d.players.reduce(function(sum, p) { return sum + p.rake * (p.pct || 0) / 100; }, 0); }
+function calcRake(d) { return d.players.reduce(function(sum, p) { return sum + p.rake; }, 0); }
+function fmt(n) { return parseFloat(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function s(str) { return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function showValidation(msgs) {
+  var box = document.getElementById('validationBox');
+  if (!box) return;
+  box.innerHTML = msgs.map(function(m) {
+    var ok = m.indexOf('✅') === 0;
+    return '<div class="vrow ' + (ok ? 'vok' : 'vwarn') + '">' + esc(m) + '</div>';
+  }).join('');
+  box.style.display = 'block';
+}
+
+function toggleDebug() {
+  var d = document.getElementById('debugOut');
+  var b = document.getElementById('debugToggle');
+  var showing = d.classList.toggle('show');
+  b.textContent = (showing ? '▼ ' : '▶ ') + 'AI 原始資料（除錯用）';
+}
+function showDebugBtn() {
+  document.getElementById('debugToggle').classList.add('show');
+}
+loadKey();
+</script>
+</body>
+</html>
