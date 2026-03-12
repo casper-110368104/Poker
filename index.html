@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退水試算</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root{--bg:#0a0a0a;--bg2:#111;--gold:#c9a84c;--gold2:#f0d080;--text:#f0f0f0;--muted:#555;--red:#ff4d4d;--green:#4dff91;--border:#222;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;max-width:480px;margin:0 auto;padding:16px;min-height:100vh;}
+
+  .header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:12px;margin-bottom:16px;}
+  .header-title{color:var(--gold);font-weight:700;font-size:15px;letter-spacing:1px;}
+  .key-status{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .key-dot{width:7px;height:7px;border-radius:50%;background:var(--red);transition:background .3s;}
+  .key-dot.active{background:var(--green);}
+
+  .card{background:#141414;border:1px solid #2a2a2a;border-radius:12px;padding:14px;margin-bottom:12px;}
+  .card-label{font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;}
+  .key-row{display:flex;gap:8px;}
+  .key-input{flex:1;background:#0d0d0d;border:1px solid #333;border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;font-family:monospace;outline:none;transition:border-color .2s;}
+  .key-input:focus{border-color:var(--gold);}
+  .save-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;color:var(--gold);padding:9px 14px;cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap;}
+  .save-btn:hover{background:#2a2a2a;}
+
+  .upload-btn{background:linear-gradient(135deg,var(--gold),#a07830);color:#000;padding:15px;border-radius:25px;border:none;font-weight:700;width:100%;cursor:pointer;font-size:15px;letter-spacing:1px;font-family:'Noto Sans TC',sans-serif;transition:opacity .2s;}
+  .upload-btn:hover{opacity:.9;}
+  .upload-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .loading{text-align:center;margin-top:24px;color:var(--gold);font-size:14px;animation:pulse 1.2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .preview-img{width:100%;border-radius:10px;margin-top:12px;border:1px solid #222;display:none;}
+
+  /* Agent block */
+  .agent-block{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-top:16px;overflow:hidden;}
+  .agent-header{background:#1a1a1a;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;}
+  .agent-name{font-weight:700;font-size:14px;color:var(--gold);}
+  .agent-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .agent-rebate-total{font-size:13px;color:var(--gold2);font-weight:700;text-align:right;}
+  .agent-rebate-label{font-size:10px;color:var(--muted);text-align:right;}
+
+  /* Player rows */
+  .player-row{border-bottom:1px solid #1a1a1a;padding:10px 14px;display:flex;align-items:center;gap:10px;}
+  .player-row:last-child{border-bottom:none;}
+  .player-info{flex:1;min-width:0;}
+  .p-nick{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .p-id{font-size:11px;color:var(--muted);margin-top:1px;}
+  .p-rake{font-size:12px;color:#666;margin-top:2px;}
+  .pct-wrap{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+  .pct-input{width:52px;background:#0d0d0d;border:1px solid #333;border-radius:6px;color:var(--gold2);padding:5px 6px;font-size:13px;font-weight:700;text-align:center;outline:none;}
+  .pct-input:focus{border-color:var(--gold);}
+  .pct-sign{font-size:12px;color:var(--muted);}
+  .rebate-amt{min-width:72px;text-align:right;color:var(--gold);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;}
+
+  /* Grand total */
+  .grand-total{background:#161610;border:1px solid #333;border-radius:12px;margin-top:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;}
+  .gt-label{font-size:13px;color:var(--muted);}
+  .gt-val{font-size:20px;font-weight:700;color:var(--gold2);}
+
+  .error-box{background:#1a0a0a;border:1px solid #4a1010;border-radius:10px;padding:14px;margin-top:16px;color:var(--red);font-size:13px;line-height:1.7;}
+  .error-box b{display:block;margin-bottom:6px;}
+
+  .help{font-size:11px;color:#333;text-align:center;margin-top:14px;line-height:1.6;}
+  .help a{color:#555;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">♠ 退水試算系統</span>
+  <div class="key-status">
+    <div class="key-dot" id="keyDot"></div>
+    <span id="keyStatusText">未設定 Key</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-label">GEMINI API KEY</div>
+  <div class="key-row">
+    <input type="password" class="key-input" id="keyInput" placeholder="AIza...">
+    <button class="save-btn" onclick="saveKey()">儲存</button>
+  </div>
+</div>
+
+<button class="upload-btn" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+  📷 導入報表圖片開始分析
+</button>
+<input type="file" id="fileInput" hidden accept="image/*" onchange="run(event)">
+
+<img id="previewImg" class="preview-img">
+<div id="out"></div>
+
+<div class="help">
+  API Key 僅存於本地瀏覽器，不會上傳至任何伺服器<br>
+  <a href="https://aistudio.google.com/app/apikey" target="_blank">取得免費 Gemini API Key →</a>
+</div>
+
+<script>
+let apiKey = '';
+let state = {}; // { agentId: { players: [{playerId, nick, rake, pct}] } }
+
+function loadKey() {
+  try { apiKey = localStorage.getItem('gemini_key') || ''; } catch(e) { apiKey=''; }
+  updateKeyUI();
+  if (apiKey) document.getElementById('keyInput').value = apiKey;
+}
+function saveKey() {
+  const val = document.getElementById('keyInput').value.trim();
+  if (!val) { alert('請輸入 API Key'); return; }
+  apiKey = val;
+  try { localStorage.setItem('gemini_key', val); } catch(e) {}
+  updateKeyUI(); alert('✅ 已儲存！');
+}
+function updateKeyUI() {
+  const dot = document.getElementById('keyDot');
+  const txt = document.getElementById('keyStatusText');
+  if (apiKey) { dot.classList.add('active'); txt.textContent = 'Key 已設定'; }
+  else { dot.classList.remove('active'); txt.textContent = '未設定 Key'; }
+}
+
+async function run(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!apiKey) { alert('請先輸入並儲存 Gemini API Key！'); return; }
+
+  const preview = document.getElementById('previewImg');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+
+  const out = document.getElementById('out');
+  out.innerHTML = "<div class='loading'>⏳ 正在分析報表，請稍候...</div>";
+  document.getElementById('uploadBtn').disabled = true;
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: `你是專業資料提取助手。這是撲克平台代理報表圖片。
+
+表格欄位由左至右通常為：序號、超級代理ID、代理ID、玩家ID、暱稱(Nickname)、地區、玩家類型、服務費(Rake)等。
+
+請提取每一列有效資料（忽略空列和TOTAL列），按「代理ID」分組，服務費取絕對值。
+
+只輸出純 JSON，不要 markdown 或任何說明文字：
+{"agents":[{"agentId":"代理ID","players":[{"playerId":"玩家ID","nick":"暱稱","rake":數字}]}]}` },
+            { inline_data: { mime_type: file.type, data: base64 } }
+          ]}],
+          generationConfig: { temperature: 0.1 }
+        })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(`API 錯誤 ${data.error.code}: ${data.error.message}`);
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!aiText) throw new Error('AI 未回傳內容，請重試');
+
+      const cleaned = aiText.replace(/```json|```/g, '').trim();
+      const jsonStr = cleaned.match(/\{[\s\S]*\}/)?.[0];
+      if (!jsonStr) throw new Error('無法解析 AI 回傳格式，請重試');
+
+      const parsed = JSON.parse(jsonStr);
+      if (!parsed.agents?.length) throw new Error('圖片中未找到代理資料');
+
+      state = {};
+      parsed.agents.forEach(a => {
+        state[a.agentId] = {
+          players: (a.players || []).map(p => ({ ...p, pct: 30 }))
+        };
+      });
+
+      renderResults();
+    } catch (err) {
+      out.innerHTML = `<div class="error-box"><b>⚠ 發生錯誤</b>${escHtml(err.message)}<br><br>• API Key 不正確或已過期<br>• 圖片模糊，請截更清晰的圖<br>• 請確認使用 JPG / PNG 格式</div>`;
+    } finally {
+      document.getElementById('uploadBtn').disabled = false;
+      document.getElementById('fileInput').value = '';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderResults() {
+  const out = document.getElementById('out');
+  let html = '';
+
+  Object.entries(state).forEach(([agentId, d]) => {
+    const safeAgent = safe(agentId);
+    const agentRebate = d.players.reduce((s, p) => s + (parseFloat(p.rake)||0) * (parseFloat(p.pct)||0) / 100, 0);
+
+    html += `<div class="agent-block">
+      <div class="agent-header">
+        <div>
+          <div class="agent-name">代理：${escHtml(agentId)}</div>
+          <div class="agent-sub">${d.players.length} 位玩家</div>
+        </div>
+        <div>
+          <div class="agent-rebate-label">代理退水小計</div>
+          <div class="agent-rebate-total" id="agt_${safeAgent}">$${fmt(agentRebate)}</div>
+        </div>
+      </div>`;
+
+    d.players.forEach((p, idx) => {
+      const rake = parseFloat(p.rake)||0;
+      const rebate = rake * (parseFloat(p.pct)||0) / 100;
+      const safeP = safe(agentId + '_' + idx);
+      html += `<div class="player-row">
+        <div class="player-info">
+          <div class="p-nick">${escHtml(p.nick||'-')}</div>
+          <div class="p-id">${escHtml(p.playerId||'')}</div>
+          <div class="p-rake">Rake $${fmt(rake)}</div>
+        </div>
+        <div class="pct-wrap">
+          <input class="pct-input" type="number" min="0" max="100" step="0.1"
+            value="${p.pct}"
+            oninput="updatePlayer('${escAttr(agentId)}',${idx},this.value)">
+          <span class="pct-sign">%</span>
+        </div>
+        <div class="rebate-amt" id="pamt_${safeP}">$${fmt(rebate)}</div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  // Grand total
+  const grand = Object.values(state).reduce((s, d) =>
+    s + d.players.reduce((ss, p) => ss + (parseFloat(p.rake)||0) * (parseFloat(p.pct)||0) / 100, 0), 0);
+
+  html += `<div class="grand-total">
+    <span class="gt-label">💰 全部退水總計</span>
+    <span class="gt-val" id="grandTotal">$${fmt(grand)}</span>
+  </div>`;
+
+  out.innerHTML = html;
+}
+
+function updatePlayer(agentId, idx, val) {
+  if (!state[agentId]) return;
+  state[agentId].players[idx].pct = parseFloat(val) || 0;
+
+  const p = state[agentId].players[idx];
+  const rake = parseFloat(p.rake)||0;
+  const rebate = rake * p.pct / 100;
+  const safeP = safe(agentId + '_' + idx);
+  const el = document.getElementById('pamt_' + safeP);
+  if (el) el.textContent = `$${fmt(rebate)}`;
+
+  // Update agent subtotal
+  const agentRebate = state[agentId].players.reduce((s, pp) =>
+    s + (parseFloat(pp.rake)||0) * (parseFloat(pp.pct)||0) / 100, 0);
+  const agtEl = document.getElementById('agt_' + safe(agentId));
+  if (agtEl) agtEl.textContent = `$${fmt(agentRebate)}`;
+
+  // Update grand total
+  const grand = Object.values(state).reduce((s, d) =>
+    s + d.players.reduce((ss, pp) => ss + (parseFloat(pp.rake)||0) * (parseFloat(pp.pct)||0) / 100, 0), 0);
+  const gtEl = document.getElementById('grandTotal');
+  if (gtEl) gtEl.textContent = `$${fmt(grand)}`;
+}
+
+function fmt(n) {
+  return parseFloat(n).toLocaleString('zh-TW', {minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+function safe(s) { return String(s).replace(/[^a-zA-Z0-9]/g,'_'); }
+
+loadKey();
+</script>
+</body>
+</html>
