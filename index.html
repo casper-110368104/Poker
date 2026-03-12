@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>退水試算</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+:root{--bg:#0a0a0a;--bg2:#111;--gold:#c9a84c;--gold2:#f0d080;--text:#f0f0f0;--muted:#555;--red:#ff4d4d;--green:#4dff91;--border:#222;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;max-width:520px;margin:0 auto;padding:16px 14px 60px;min-height:100vh;}
+
+.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:12px;margin-bottom:16px;}
+.header-title{color:var(--gold);font-weight:700;font-size:15px;letter-spacing:1px;}
+.key-status{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+.key-dot{width:7px;height:7px;border-radius:50%;background:var(--red);transition:background .3s;flex-shrink:0;}
+.key-dot.on{background:var(--green);}
+
+.card{background:#141414;border:1px solid #2a2a2a;border-radius:12px;padding:14px;margin-bottom:12px;}
+.card-label{font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase;}
+.key-row{display:flex;gap:8px;}
+.key-input{flex:1;min-width:0;background:#0d0d0d;border:1px solid #333;border-radius:8px;color:var(--text);padding:12px;font-size:14px;font-family:monospace;outline:none;}
+.key-input:focus{border-color:var(--gold);}
+.save-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;color:var(--gold);padding:12px 16px;cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap;min-width:64px;min-height:48px;}
+.save-btn:active{background:#2a2a2a;}
+.key-hint{font-size:10px;color:#333;margin-top:6px;}
+.key-hint a{color:#444;}
+
+.upload-btn{background:linear-gradient(135deg,var(--gold),#a07830);color:#000;padding:16px;border-radius:25px;border:none;font-weight:700;width:100%;cursor:pointer;font-size:15px;letter-spacing:1px;font-family:'Noto Sans TC',sans-serif;min-height:56px;}
+.upload-btn:active{opacity:.85;}
+.upload-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+.loading{text-align:center;margin-top:24px;color:var(--gold);font-size:14px;animation:pulse 1.2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.preview-img{width:100%;border-radius:10px;margin-top:12px;border:1px solid #222;display:none;}
+
+.agent-block{background:var(--bg2);border:2px solid var(--border);border-radius:12px;margin-top:14px;transition:border-color .15s;}
+.agent-block.drag-over{border-color:var(--gold);background:#151200;}
+.agent-header{background:#1a1a1a;padding:12px 14px;border-radius:10px 10px 0 0;cursor:pointer;user-select:none;}
+.agent-header-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.agent-name{font-weight:700;font-size:14px;color:var(--gold);}
+.agent-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.agent-totals{text-align:right;flex-shrink:0;padding-left:8px;}
+.agent-self-rake{font-size:11px;color:var(--muted);}
+.agent-rebate-total{font-size:13px;color:var(--gold2);font-weight:700;margin-top:2px;}
+.expand-icon{font-size:10px;color:var(--muted);margin-left:4px;display:inline-block;transition:transform .2s;}
+.expand-icon.open{transform:rotate(180deg);}
+.drop-hint{font-size:10px;color:transparent;text-align:center;padding:4px;}
+.agent-block.drag-over .drop-hint{color:var(--gold);}
+
+.detail-panel{display:none;background:#0d0d08;border-top:1px solid #2a2a1a;padding:10px 14px;}
+.detail-panel.open{display:block;}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1a1a10;}
+.detail-row:last-child{border-bottom:none;}
+.detail-label{font-size:12px;color:var(--muted);}
+.detail-val{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
+.detail-val.pos{color:var(--green);}
+.detail-val.neg{color:var(--red);}
+.detail-val.neutral{color:var(--gold2);}
+.detail-val.big{font-size:14px;}
+
+.player-row{border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:6px;transition:opacity .15s;}
+.player-row:last-child{border-bottom:none;}
+.player-row.is-agent-self{background:#1a1500;}
+.player-row.dragging{opacity:.25;}
+
+.drag-handle{color:#2a2a2a;font-size:14px;flex-shrink:0;padding:14px 4px;cursor:grab;}
+.drag-handle:hover{color:#555;}
+.ph{width:22px;flex-shrink:0;}
+
+.player-info{flex:1;min-width:0;padding:10px 4px;cursor:pointer;}
+.p-nick{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.p-id{font-size:10px;color:var(--muted);margin-top:1px;}
+.p-rake{font-size:11px;color:#555;margin-top:2px;}
+
+.move-wrap{position:relative;flex-shrink:0;padding:6px 2px;}
+.move-btn{background:#1a1a1a;border:1px solid #333;border-radius:6px;color:var(--muted);padding:0 8px;font-size:11px;cursor:pointer;white-space:nowrap;min-width:52px;height:40px;display:flex;align-items:center;justify-content:center;}
+.move-btn:active{background:#2a2a2a;color:var(--text);}
+.move-menu{display:none;position:absolute;right:0;top:calc(100% + 2px);background:#1e1e1e;border:1px solid #333;border-radius:8px;z-index:200;min-width:140px;box-shadow:0 4px 20px rgba(0,0,0,.7);max-height:200px;overflow-y:auto;}
+.move-menu.open{display:block;}
+.move-option{padding:0 14px;font-size:13px;cursor:pointer;color:var(--text);border-bottom:1px solid #2a2a2a;display:flex;align-items:center;height:44px;}
+.move-option:last-child{border-bottom:none;}
+.move-option:active{background:#2a2a2a;}
+.move-option.current{color:var(--gold);}
+
+.pct-ctrl{display:flex;align-items:center;gap:2px;flex-shrink:0;padding:6px 2px;}
+.pct-btn{width:36px;height:40px;min-width:36px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:var(--gold);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.pct-btn:active{background:#333;}
+.pct-val{width:36px;text-align:center;color:var(--gold2);font-weight:700;font-size:12px;}
+
+.rebate-amt{min-width:62px;text-align:right;color:var(--gold);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;padding-right:10px;flex-shrink:0;}
+
+.summary-panel{background:#101008;border:1px solid #2a2a1a;border-radius:14px;margin-top:20px;overflow:hidden;}
+.summary-title{background:#1a1a10;padding:10px 16px;font-size:11px;color:var(--gold);font-weight:700;letter-spacing:1px;border-bottom:1px solid #2a2a1a;}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;}
+.summary-cell{padding:13px 16px;border-bottom:1px solid #1a1a10;}
+.summary-cell:nth-child(odd){border-right:1px solid #1a1a10;}
+.summary-cell:last-child,.summary-cell:nth-last-child(2){border-bottom:none;}
+.sc-label{font-size:10px;color:var(--muted);margin-bottom:4px;}
+.sc-val{font-size:17px;font-weight:700;color:var(--gold2);font-variant-numeric:tabular-nums;}
+.my-cut-row{padding:12px 16px;border-top:1px solid #2a2a1a;display:flex;align-items:center;gap:8px;}
+.my-cut-label{font-size:12px;color:var(--muted);flex:1;}
+.my-cut-result{font-size:15px;font-weight:700;color:var(--green);min-width:80px;text-align:right;font-variant-numeric:tabular-nums;}
+
+.error-box{background:#1a0a0a;border:1px solid #4a1010;border-radius:10px;padding:14px;margin-top:16px;color:var(--red);font-size:13px;line-height:1.7;}
+.error-box b{display:block;margin-bottom:6px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">♠ 退水試算系統</span>
+  <div class="key-status">
+    <div class="key-dot" id="keyDot"></div>
+    <span id="keyStatusText">未設定 Key</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-label">Gemini API Key</div>
+  <div class="key-row">
+    <input type="password" class="key-input" id="keyInput" placeholder="AIza..." autocomplete="off">
+    <button class="save-btn" onclick="saveKey()">儲存</button>
+  </div>
+  <div class="key-hint">Key 僅存於本機瀏覽器，不上傳任何伺服器。<br>
+    <a href="https://aistudio.google.com/app/apikey" target="_blank">取得 Gemini API Key →</a>
+  </div>
+</div>
+
+<button class="upload-btn" id="uploadBtn" onclick="document.getElementById('fi').click()">
+  📷 導入報表圖片開始分析
+</button>
+<input type="file" id="fi" hidden accept="image/*">
+<img id="previewImg" class="preview-img">
+<div id="out"></div>
+
+<script>
+var apiKey = '';
+var grouped = {};
+var myCutPct = 100;
+var dragState = null;
+
+// ── Init ─────────────────────────────────────────────
+document.getElementById('fi').addEventListener('change', run);
+document.addEventListener('click', function(e) {
+  if (!e.target.closest || !e.target.closest('.move-wrap')) closeAllMoveMenus();
+});
+
+function loadKey() {
+  try { apiKey = localStorage.getItem('gemini_key') || ''; } catch(e) {}
+  updateKeyUI();
+  if (apiKey) document.getElementById('keyInput').value = apiKey;
+}
+
+function saveKey() {
+  var v = document.getElementById('keyInput').value.trim();
+  if (!v) { alert('請輸入 API Key'); return; }
+  apiKey = v;
+  try { localStorage.setItem('gemini_key', v); } catch(e) {}
+  updateKeyUI();
+  alert('✅ 已儲存！');
+}
+
+function updateKeyUI() {
+  document.getElementById('keyDot').classList.toggle('on', !!apiKey);
+  document.getElementById('keyStatusText').textContent = apiKey ? 'Key 已設定' : '未設定 Key';
+}
+
+// ── Run ──────────────────────────────────────────────
+function run(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  if (!apiKey) { alert('請先設定並儲存 Gemini API Key！'); return; }
+
+  var preview = document.getElementById('previewImg');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  document.getElementById('out').innerHTML = "<div class='loading'>⏳ 正在逐行分析，請稍候...</div>";
+  document.getElementById('uploadBtn').disabled = true;
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var base64 = ev.target.result.split(',')[1];
+    var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey;
+    var prompt = '你是專業資料提取助手。請仔細逐行讀取這張撲克平台報表圖片，絕對不能漏掉任何一行。\n\n表格欄位（由左至右）：\n1. 超級代理ID（Super Agent ID）— 此人的超代\n2. 代理ID（Agent ID）— 此人的直屬上線代理，可能空白\n3. 玩家ID（Player ID）— 此人自己的ID\n4. 暱稱（Nickname）\n5. 玩家類型（Player 或 Agent）\n6. 服務費 Rake（取絕對值）\n7. Total P&L 或類似欄位 — 玩家純輸贏（未扣Rake），正負保留\n\n規則：\n- 代理ID有值 → 此人屬於該代理底下\n- 代理ID空白 → 此人直屬超代，superAgentId填超代ID\n- 玩家類型是 Agent → 他本身是代理\n- 忽略 TOTAL 列和空白列\n\n輸出純 JSON（不要任何 markdown 或說明）：\n{"rows":[{"superAgentId":"超代ID或null","agentId":"代理ID或null","playerId":"玩家ID","nick":"暱稱","type":"Player或Agent","rake":數字,"pnl":數字}]}';
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { text: prompt },
+          { inline_data: { mime_type: file.type, data: base64 } }
+        ]}],
+        generationConfig: { temperature: 0 }
+      })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error('API 錯誤 ' + data.error.code + ': ' + data.error.message);
+      var aiText = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+      if (!aiText) throw new Error('AI 未回傳內容，請重試');
+      var cleaned = aiText.replace(/```json|```/g, '').trim();
+      var match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('無法解析回傳格式');
+      var parsed = JSON.parse(match[0]);
+      if (!parsed.rows || !parsed.rows.length) throw new Error('未找到任何資料');
+      grouped = buildGroups(parsed.rows);
+      myCutPct = 100;
+      renderAll();
+    })
+    .catch(function(err) {
+      document.getElementById('out').innerHTML = '<div class="error-box"><b>⚠ 發生錯誤</b><br>' + escHtml(err.message) + '</div>';
+    })
+    .finally(function() {
+      document.getElementById('uploadBtn').disabled = false;
+      document.getElementById('fi').value = '';
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Build Groups ─────────────────────────────────────
+function buildGroups(rows) {
+  var result = {};
+
+  function getOwner(r) {
+    var aid = r.agentId && r.agentId !== 'null' ? String(r.agentId) : null;
+    var sid = r.superAgentId && r.superAgentId !== 'null' ? String(r.superAgentId) : null;
+    return aid || sid || null;
+  }
+
+  // Step 1: 建立代理
+  rows.forEach(function(r) {
+    if (!r.playerId) return;
+    var owner = getOwner(r);
+    if (r.type === 'Agent' || !owner) {
+      var id = String(r.playerId);
+      if (!result[id]) {
+        result[id] = { nick: r.nick || id, selfRake: Math.abs(parseFloat(r.rake)||0), selfPnl: parseFloat(r.pnl)||0, players: [] };
+      } else {
+        result[id].nick = r.nick || id;
+        result[id].selfRake = Math.abs(parseFloat(r.rake)||0);
+        result[id].selfPnl = parseFloat(r.pnl)||0;
+      }
+    }
+  });
+
+  // Step 2: 代理本人加入 players
+  Object.keys(result).forEach(function(aid) {
+    var d = result[aid];
+    d.players.push({ id: aid, nick: d.nick, rake: d.selfRake, pnl: d.selfPnl, pct: 30, isSelf: true });
+  });
+
+  // Step 3: 分配 Player
+  rows.forEach(function(r) {
+    if (r.type === 'Agent' || !r.playerId) return;
+    var owner = getOwner(r);
+    if (!owner) return;
+    var ownerStr = String(owner);
+    var pid = String(r.playerId);
+    if (!result[ownerStr]) {
+      result[ownerStr] = { nick: ownerStr, selfRake: 0, selfPnl: 0, players: [
+        { id: ownerStr, nick: ownerStr, rake: 0, pnl: 0, pct: 30, isSelf: true }
+      ]};
+    }
+    var exists = result[ownerStr].players.some(function(p) { return p.id === pid; });
+    if (!exists) {
+      result[ownerStr].players.push({ id: pid, nick: r.nick || pid, rake: Math.abs(parseFloat(r.rake)||0), pnl: parseFloat(r.pnl)||0, pct: 30, isSelf: false });
+    }
+  });
+
+  return result;
+}
+
+// ── Render ───────────────────────────────────────────
+function renderAll() {
+  var html = '';
+  var agentIds = Object.keys(grouped);
+
+  agentIds.forEach(function(agentId) {
+    var d = grouped[agentId];
+    var safeA = safe(agentId);
+    html += '<div class="agent-block" id="ab_' + safeA + '">';
+    html += '<div class="agent-header" onclick="toggleAgentDetail(\'' + safeA + '\')">';
+    html += '<div class="agent-header-top">';
+    html += '<div>';
+    html += '<div class="agent-name">代理：' + escHtml(d.nick) + ' <span class="expand-icon" id="aicon_' + safeA + '">▼</span></div>';
+    html += '<div class="agent-sub">' + escHtml(agentId) + ' ／ ' + d.players.length + ' 人</div>';
+    html += '</div>';
+    html += '<div class="agent-totals">';
+    html += '<div class="agent-self-rake">Rake $' + fmt(calcTotalRake(d)) + '</div>';
+    html += '<div class="agent-rebate-total">退水 $<span id="agt_' + safeA + '">' + fmt(calcAgentRebate(d)) + '</span></div>';
+    html += '</div></div>';
+    html += '<div class="detail-panel" id="adp_' + safeA + '">' + agentDetailHTML(agentId, d) + '</div>';
+    html += '</div>';
+    html += '<div class="drop-hint">📥 放開以移入此代理</div>';
+    html += '<div id="players_' + safeA + '">';
+    d.players.forEach(function(p, idx) { html += playerRowHTML(agentId, idx, p); });
+    html += '</div></div>';
+  });
+
+  html += summaryHTML();
+  document.getElementById('out').innerHTML = html;
+  setupDrag();
+}
+
+function playerRowHTML(agentId, idx, p) {
+  var safeA = safe(agentId);
+  var safeP = safe(agentId + '_' + idx);
+  var rebate = p.rake * (p.pct || 0) / 100;
+  var selfTag = p.isSelf ? ' <span style="font-size:10px;color:var(--gold);opacity:.7">(代理)</span>' : '';
+  var html = '';
+
+  html += '<div class="player-row' + (p.isSelf ? ' is-agent-self' : '') + '" id="pr_' + safeP + '">';
+  html += p.isSelf ? '<span class="ph"></span>' : '<span class="drag-handle">⠿</span>';
+
+  // Info
+  html += '<div class="player-info" onclick="togglePlayerDetail(\'' + safeP + '\')">';
+  html += '<div class="p-nick">' + escHtml(p.nick || '-') + selfTag + ' <span class="expand-icon" id="picon_' + safeP + '" style="font-size:9px">▼</span></div>';
+  html += '<div class="p-id">' + escHtml(p.id || '') + '</div>';
+  html += '<div class="p-rake">Rake $' + fmt(p.rake) + '</div>';
+  html += '<div class="detail-panel" id="pdp_' + safeP + '" onclick="event.stopPropagation()">' + playerDetailHTML(p) + '</div>';
+  html += '</div>';
+
+  // Move menu
+  if (!p.isSelf) {
+    var agentIds = Object.keys(grouped);
+    var opts = '';
+    agentIds.forEach(function(aid) {
+      var isCur = aid === agentId;
+      opts += '<div class="move-option' + (isCur ? ' current' : '') + '" onclick="movePlayerTo(\'' + safeA + '\',\'' + safe(aid) + '\',' + idx + ')">' + (isCur ? '✓ ' : '') + escHtml(grouped[aid].nick) + '</div>';
+    });
+    html += '<div class="move-wrap" onclick="event.stopPropagation()">';
+    html += '<button class="move-btn" onclick="toggleMoveMenu(\'' + safeP + '\')">移至▾</button>';
+    html += '<div class="move-menu" id="mm_' + safeP + '">' + opts + '</div>';
+    html += '</div>';
+  }
+
+  // Pct
+  html += '<div class="pct-ctrl" onclick="event.stopPropagation()">';
+  html += '<button class="pct-btn" onclick="stepPct(\'' + safeA + '\',' + idx + ',-5)">−</button>';
+  html += '<div class="pct-val" id="pv_' + safeP + '">' + (p.pct || 0) + '%</div>';
+  html += '<button class="pct-btn" onclick="stepPct(\'' + safeA + '\',' + idx + ',5)">+</button>';
+  html += '</div>';
+
+  html += '<div class="rebate-amt" id="pamt_' + safeP + '">$' + fmt(rebate) + '</div>';
+  html += '</div>';
+  return html;
+}
+
+function summaryHTML() {
+  var totalRake = Object.values(grouped).reduce(function(s, d) { return s + calcTotalRake(d); }, 0);
+  var totalRebate = Object.values(grouped).reduce(function(s, d) { return s + calcAgentRebate(d); }, 0);
+  var myActual = totalRebate * myCutPct / 100;
+  return '<div class="summary-panel">' +
+    '<div class="summary-title">📊 總覽</div>' +
+    '<div class="summary-grid">' +
+    '<div class="summary-cell"><div class="sc-label">總 RAKE</div><div class="sc-val">$<span id="s_rake">' + fmt(totalRake) + '</span></div></div>' +
+    '<div class="summary-cell"><div class="sc-label">總退水金額</div><div class="sc-val">$<span id="s_rebate">' + fmt(totalRebate) + '</span></div></div>' +
+    '</div>' +
+    '<div class="my-cut-row">' +
+    '<div class="my-cut-label">我實際拿到</div>' +
+    '<div class="pct-ctrl">' +
+    '<button class="pct-btn" onclick="stepMyCut(-5)">−</button>' +
+    '<div class="pct-val" id="mycut_pct" style="width:40px">' + myCutPct + '%</div>' +
+    '<button class="pct-btn" onclick="stepMyCut(5)">+</button>' +
+    '</div>' +
+    '<div class="my-cut-result">$<span id="s_mycut">' + fmt(myActual) + '</span></div>' +
+    '</div></div>';
+}
+
+// ── Detail HTML ──────────────────────────────────────
+function playerDetailHTML(p) {
+  var rebate = p.rake * (p.pct || 0) / 100;
+  var net = (p.pnl || 0) - rebate;
+  return '<div class="detail-row"><span class="detail-label">總輸贏（純輸贏）</span><span class="detail-val ' + ((p.pnl||0) >= 0 ? 'pos' : 'neg') + '">$' + fmt(p.pnl || 0) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label">應退水（' + (p.pct||0) + '%）</span><span class="detail-val neutral">+ $' + fmt(rebate) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label" style="color:var(--text);font-weight:700">實際結算</span><span class="detail-val big ' + (net >= 0 ? 'pos' : 'neg') + '">$' + fmt(net) + '</span></div>';
+}
+
+function agentDetailHTML(agentId, d) {
+  var totalPnl = d.players.reduce(function(s, p) { return s + (p.pnl || 0); }, 0);
+  var totalRebate = calcAgentRebate(d);
+  var net = totalPnl - totalRebate;
+  return '<div class="detail-row"><span class="detail-label">區域總輸贏</span><span class="detail-val ' + (totalPnl >= 0 ? 'pos' : 'neg') + '">$' + fmt(totalPnl) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label">應退水總額</span><span class="detail-val neutral">+ $' + fmt(totalRebate) + '</span></div>' +
+    '<div class="detail-row"><span class="detail-label" style="color:var(--text);font-weight:700">區域實際結算</span><span class="detail-val big ' + (net >= 0 ? 'pos' : 'neg') + '">$' + fmt(net) + '</span></div>';
+}
+
+// ── Toggle ───────────────────────────────────────────
+function toggleAgentDetail(safeA) {
+  var dp = document.getElementById('adp_' + safeA);
+  var icon = document.getElementById('aicon_' + safeA);
+  if (!dp) return;
+  var isOpen = dp.classList.toggle('open');
+  if (icon) icon.classList.toggle('open', isOpen);
+}
+
+function togglePlayerDetail(safeP) {
+  var dp = document.getElementById('pdp_' + safeP);
+  var icon = document.getElementById('picon_' + safeP);
+  if (!dp) return;
+  var isOpen = dp.classList.toggle('open');
+  if (icon) icon.classList.toggle('open', isOpen);
+}
+
+// ── Pct ──────────────────────────────────────────────
+function stepPct(safeA, idx, delta) {
+  var key = findKey(safeA);
+  if (!key || !grouped[key] || !grouped[key].players[idx]) return;
+  var p = grouped[key].players[idx];
+  p.pct = Math.min(100, Math.max(0, (p.pct || 0) + delta));
+  var safeP = safe(key + '_' + idx);
+  var pvEl = document.getElementById('pv_' + safeP);
+  var amtEl = document.getElementById('pamt_' + safeP);
+  if (pvEl) pvEl.textContent = p.pct + '%';
+  if (amtEl) amtEl.textContent = '$' + fmt(p.rake * p.pct / 100);
+  var agtEl = document.getElementById('agt_' + safeA);
+  if (agtEl) agtEl.textContent = fmt(calcAgentRebate(grouped[key]));
+  refreshSummary();
+}
+
+function stepMyCut(delta) {
+  myCutPct = Math.min(100, Math.max(0, myCutPct + delta));
+  var el = document.getElementById('mycut_pct');
+  if (el) el.textContent = myCutPct + '%';
+  refreshSummary();
+}
+
+function refreshSummary() {
+  var totalRebate = Object.values(grouped).reduce(function(s, d) { return s + calcAgentRebate(d); }, 0);
+  var totalRake = Object.values(grouped).reduce(function(s, d) { return s + calcTotalRake(d); }, 0);
+  var el1 = document.getElementById('s_rake');
+  var el2 = document.getElementById('s_rebate');
+  var el3 = document.getElementById('s_mycut');
+  if (el1) el1.textContent = fmt(totalRake);
+  if (el2) el2.textContent = fmt(totalRebate);
+  if (el3) el3.textContent = fmt(totalRebate * myCutPct / 100);
+}
+
+// ── Move Menu ────────────────────────────────────────
+function toggleMoveMenu(safeP) {
+  var mm = document.getElementById('mm_' + safeP);
+  if (!mm) return;
+  var isOpen = mm.classList.contains('open');
+  closeAllMoveMenus();
+  if (!isOpen) mm.classList.add('open');
+}
+
+function closeAllMoveMenus() {
+  document.querySelectorAll('.move-menu.open').forEach(function(m) { m.classList.remove('open'); });
+}
+
+function movePlayerTo(fromSafe, toSafe, idx) {
+  closeAllMoveMenus();
+  var fromKey = findKey(fromSafe);
+  var toKey = findKey(toSafe);
+  if (!fromKey || !toKey || fromKey === toKey) return;
+  var player = grouped[fromKey].players.splice(idx, 1)[0];
+  grouped[toKey].players.push(player);
+  renderAll();
+}
+
+// ── Drag (desktop only) ──────────────────────────────
+function setupDrag() {
+  document.querySelectorAll('.drag-handle').forEach(function(handle) {
+    var row = handle.closest('.player-row');
+    if (!row) return;
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', function(e) {
+      var block = row.closest('.agent-block');
+      if (!block) return;
+      var safeA = block.id.replace('ab_', '');
+      var playersEl = document.getElementById('players_' + safeA);
+      var rows = playersEl ? playersEl.querySelectorAll('.player-row') : [];
+      var idx = -1;
+      rows.forEach(function(r, i) { if (r === row) idx = i; });
+      if (idx < 0) return;
+      dragState = { safeA: safeA, idx: idx };
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(function() { row.classList.add('dragging'); }, 0);
+    });
+    row.addEventListener('dragend', function() {
+      row.classList.remove('dragging');
+      document.querySelectorAll('.agent-block.drag-over').forEach(function(b) { b.classList.remove('drag-over'); });
+      dragState = null;
+    });
+  });
+
+  document.querySelectorAll('.agent-block').forEach(function(block) {
+    block.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', function(e) {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', function(e) {
+      e.preventDefault();
+      block.classList.remove('drag-over');
+      if (!dragState) return;
+      var toSafeA = block.id.replace('ab_', '');
+      if (toSafeA === dragState.safeA) return;
+      var fromKey = findKey(dragState.safeA);
+      var toKey = findKey(toSafeA);
+      if (!fromKey || !toKey) return;
+      var player = grouped[fromKey].players.splice(dragState.idx, 1)[0];
+      grouped[toKey].players.push(player);
+      dragState = null;
+      renderAll();
+    });
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────
+function findKey(safeId) {
+  if (grouped[safeId]) return safeId;
+  var keys = Object.keys(grouped);
+  for (var i = 0; i < keys.length; i++) {
+    if (safe(keys[i]) === safeId) return keys[i];
+  }
+  return null;
+}
+
+function calcAgentRebate(d) {
+  return d.players.reduce(function(s, p) { return s + p.rake * (p.pct || 0) / 100; }, 0);
+}
+
+function calcTotalRake(d) {
+  return d.players.reduce(function(s, p) { return s + p.rake; }, 0);
+}
+
+function fmt(n) {
+  return parseFloat(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function safe(s) {
+  return String(s).replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+loadKey();
+</script>
+</body>
+</html>
