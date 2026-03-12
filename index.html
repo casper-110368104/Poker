@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退水試算</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root{--bg:#0a0a0a;--bg2:#111;--gold:#c9a84c;--gold2:#f0d080;--text:#f0f0f0;--muted:#555;--red:#ff4d4d;--green:#4dff91;--blue:#4d9fff;--border:#222;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;max-width:520px;margin:0 auto;padding:16px;min-height:100vh;}
+
+  .header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:12px;margin-bottom:16px;}
+  .header-title{color:var(--gold);font-weight:700;font-size:15px;letter-spacing:1px;}
+  .key-status{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .key-dot{width:7px;height:7px;border-radius:50%;background:var(--red);transition:background .3s;}
+  .key-dot.active{background:var(--green);}
+
+  .card{background:#141414;border:1px solid #2a2a2a;border-radius:12px;padding:14px;margin-bottom:12px;}
+  .card-label{font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;}
+  .key-row{display:flex;gap:8px;}
+  .key-input{flex:1;background:#0d0d0d;border:1px solid #333;border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;font-family:monospace;outline:none;transition:border-color .2s;}
+  .key-input:focus{border-color:var(--gold);}
+  .save-btn{background:#1e1e1e;border:1px solid #333;border-radius:8px;color:var(--gold);padding:9px 14px;cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap;}
+  .save-btn:hover{background:#2a2a2a;}
+  .key-hint{font-size:10px;color:#333;margin-top:6px;}
+  .key-hint a{color:#444;}
+
+  .upload-btn{background:linear-gradient(135deg,var(--gold),#a07830);color:#000;padding:15px;border-radius:25px;border:none;font-weight:700;width:100%;cursor:pointer;font-size:15px;letter-spacing:1px;font-family:'Noto Sans TC',sans-serif;transition:opacity .2s;}
+  .upload-btn:hover{opacity:.9;}
+  .upload-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .loading{text-align:center;margin-top:24px;color:var(--gold);font-size:14px;animation:pulse 1.2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .preview-img{width:100%;border-radius:10px;margin-top:12px;border:1px solid #222;display:none;}
+
+  /* ── STEP 2: 原始資料表 ── */
+  .step-title{font-size:12px;color:var(--gold);font-weight:700;letter-spacing:1px;margin:20px 0 10px;}
+  .step-hint{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;}
+
+  .raw-table{width:100%;border-collapse:collapse;background:var(--bg2);border-radius:12px;overflow:hidden;margin-bottom:12px;}
+  .raw-table th{padding:8px 10px;font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:400;background:#1a1a1a;text-align:left;border-bottom:1px solid var(--border);}
+  .raw-table td{padding:10px 10px;border-bottom:1px solid #1a1a1a;font-size:12px;vertical-align:middle;}
+  .raw-table tr:last-child td{border-bottom:none;}
+  .raw-table tr.selected-agent td{background:#1a1500;}
+  .raw-table tr.selected-player td{background:#0a1a0a;}
+
+  .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px;}
+  .badge-agent{background:#332200;color:var(--gold);}
+  .badge-player{background:#0a2200;color:var(--green);}
+
+  .nick-cell{font-weight:700;}
+  .id-cell{font-size:10px;color:var(--muted);margin-top:1px;}
+  .rake-cell{text-align:right;color:#aaa;font-variant-numeric:tabular-nums;}
+
+  /* Action buttons per row */
+  .row-actions{display:flex;gap:4px;justify-content:flex-end;}
+  .btn-sm{padding:4px 8px;border-radius:6px;border:none;cursor:pointer;font-size:10px;font-weight:700;font-family:'Noto Sans TC',sans-serif;transition:opacity .2s;}
+  .btn-sm:hover{opacity:.8;}
+  .btn-agent{background:#332200;color:var(--gold);border:1px solid #554400;}
+  .btn-agent.active{background:var(--gold);color:#000;}
+  .btn-assign{background:#0a2200;color:var(--green);border:1px solid #1a4400;}
+
+  /* ── 代理選擇 modal-like ── */
+  .assign-panel{display:none;background:#141414;border:1px solid #333;border-radius:10px;padding:12px;margin-top:6px;}
+  .assign-panel.open{display:block;}
+  .assign-title{font-size:11px;color:var(--muted);margin-bottom:8px;}
+  .agent-pills{display:flex;flex-wrap:wrap;gap:6px;}
+  .agent-pill{padding:5px 10px;border-radius:20px;border:1px solid #333;background:#1a1a1a;color:var(--text);font-size:11px;cursor:pointer;transition:all .2s;}
+  .agent-pill:hover{border-color:var(--gold);}
+  .agent-pill.selected{background:var(--gold);color:#000;border-color:var(--gold);}
+
+  /* ── STEP 3: 確認按鈕 ── */
+  .confirm-btn{background:linear-gradient(135deg,#2a6a2a,#1a4a1a);color:var(--green);padding:13px;border-radius:25px;border:1px solid #2a6a2a;font-weight:700;width:100%;cursor:pointer;font-size:14px;font-family:'Noto Sans TC',sans-serif;margin-top:4px;transition:opacity .2s;}
+  .confirm-btn:hover{opacity:.9;}
+
+  /* ── STEP 4: 結果 ── */
+  .agent-block{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-top:16px;overflow:hidden;}
+  .agent-header{background:#1a1a1a;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;}
+  .agent-name{font-weight:700;font-size:14px;color:var(--gold);}
+  .agent-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .agent-rebate-total{font-size:13px;color:var(--gold2);font-weight:700;text-align:right;}
+  .agent-rebate-label{font-size:10px;color:var(--muted);text-align:right;}
+
+  .player-row{border-bottom:1px solid #1a1a1a;padding:10px 14px;display:flex;align-items:center;gap:10px;}
+  .player-row:last-child{border-bottom:none;}
+  .player-info{flex:1;min-width:0;}
+  .p-nick{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .p-id{font-size:11px;color:var(--muted);margin-top:1px;}
+  .p-rake{font-size:12px;color:#666;margin-top:2px;}
+  .pct-wrap{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+  .pct-input{width:52px;background:#0d0d0d;border:1px solid #333;border-radius:6px;color:var(--gold2);padding:5px 6px;font-size:13px;font-weight:700;text-align:center;outline:none;}
+  .pct-input:focus{border-color:var(--gold);}
+  .pct-sign{font-size:12px;color:var(--muted);}
+  .rebate-amt{min-width:72px;text-align:right;color:var(--gold);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;}
+
+  .grand-total{background:#161610;border:1px solid #333;border-radius:12px;margin-top:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;}
+  .gt-label{font-size:13px;color:var(--muted);}
+  .gt-val{font-size:20px;font-weight:700;color:var(--gold2);}
+
+  .re-analyze-btn{background:#1a1a1a;color:var(--muted);padding:10px;border-radius:20px;border:1px solid #333;font-size:12px;width:100%;cursor:pointer;margin-top:12px;font-family:'Noto Sans TC',sans-serif;}
+  .re-analyze-btn:hover{color:var(--text);}
+
+  .error-box{background:#1a0a0a;border:1px solid #4a1010;border-radius:10px;padding:14px;margin-top:16px;color:var(--red);font-size:13px;line-height:1.7;}
+  .error-box b{display:block;margin-bottom:6px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">♠ 退水試算系統</span>
+  <div class="key-status">
+    <div class="key-dot" id="keyDot"></div>
+    <span id="keyStatusText">未設定 Key</span>
+  </div>
+</div>
+
+<!-- API Key -->
+<div class="card">
+  <div class="card-label">GEMINI API KEY</div>
+  <div class="key-row">
+    <input type="password" class="key-input" id="keyInput" placeholder="AIza...">
+    <button class="save-btn" onclick="saveKey()">儲存</button>
+  </div>
+  <div class="key-hint">Key 僅存於本機瀏覽器，不會上傳至任何伺服器。<br>
+    <a href="https://aistudio.google.com/app/apikey" target="_blank">取得 Gemini API Key →</a>
+  </div>
+</div>
+
+<!-- Upload -->
+<button class="upload-btn" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+  📷 導入報表圖片開始分析
+</button>
+<input type="file" id="fileInput" hidden accept="image/*" onchange="run(event)">
+<img id="previewImg" class="preview-img">
+
+<!-- Output area -->
+<div id="out"></div>
+
+<script>
+let apiKey = '';
+let allPlayers = [];   // [{id, nick, rake}]
+let agents = {};       // { agentId: { nick, rake, players:[idx,...] } }
+let assigningRow = -1; // index of row currently being assigned
+
+// ── Key 管理 ─────────────────────────────────────────
+function loadKey() {
+  try { apiKey = localStorage.getItem('gemini_key') || ''; } catch(e) { apiKey=''; }
+  updateKeyUI();
+  if (apiKey) document.getElementById('keyInput').value = apiKey;
+}
+function saveKey() {
+  const val = document.getElementById('keyInput').value.trim();
+  if (!val) { alert('請輸入 API Key'); return; }
+  apiKey = val;
+  try { localStorage.setItem('gemini_key', val); } catch(e) {}
+  updateKeyUI(); alert('✅ 已儲存！');
+}
+function updateKeyUI() {
+  const dot = document.getElementById('keyDot');
+  const txt = document.getElementById('keyStatusText');
+  if (apiKey) { dot.classList.add('active'); txt.textContent = 'Key 已設定'; }
+  else { dot.classList.remove('active'); txt.textContent = '未設定 Key'; }
+}
+
+// ── 分析圖片 ─────────────────────────────────────────
+async function run(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!apiKey) { alert('請先輸入並儲存 Gemini API Key！'); return; }
+
+  const preview = document.getElementById('previewImg');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+
+  const out = document.getElementById('out');
+  out.innerHTML = "<div class='loading'>⏳ 正在讀取報表，請稍候...</div>";
+  document.getElementById('uploadBtn').disabled = true;
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: `你是專業資料提取助手。這是撲克平台代理報表圖片。
+
+請讀取圖片中每一列有效資料（忽略空列和TOTAL列）。
+不需要分組，只需列出所有人，每人包含：
+- id：玩家ID或代理ID（Player ID 那欄）
+- nick：暱稱
+- rake：服務費，取絕對值，純數字
+
+只輸出純 JSON，不要 markdown：
+{"players":[{"id":"ID","nick":"暱稱","rake":數字}]}` },
+            { inline_data: { mime_type: file.type, data: base64 } }
+          ]}],
+          generationConfig: { temperature: 0.1 }
+        })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(`API 錯誤 ${data.error.code}: ${data.error.message}`);
+
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!aiText) throw new Error('AI 未回傳內容，請重試');
+
+      const cleaned = aiText.replace(/```json|```/g,'').trim();
+      const jsonStr = cleaned.match(/\{[\s\S]*\}/)?.[0];
+      if (!jsonStr) throw new Error('無法解析回傳格式');
+
+      const parsed = JSON.parse(jsonStr);
+      if (!parsed.players?.length) throw new Error('未找到任何資料');
+
+      allPlayers = parsed.players.map((p, i) => ({ ...p, idx: i }));
+      agents = {};
+      assigningRow = -1;
+
+      renderRawTable();
+
+    } catch (err) {
+      out.innerHTML = `<div class="error-box"><b>⚠ 發生錯誤</b><br>${escHtml(err.message)}</div>`;
+    } finally {
+      document.getElementById('uploadBtn').disabled = false;
+      document.getElementById('fileInput').value = '';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── STEP 2: 顯示原始資料，讓使用者選取 ───────────────
+function renderRawTable() {
+  const agentIds = Object.keys(agents);
+
+  let html = `
+    <div class="step-title">📋 STEP 1 — 確認資料 & 設定代理</div>
+    <div class="step-hint">
+      先點「設為代理」標記代理人，再對每位玩家點「指定代理」分配給對應代理。<br>
+      同時身兼代理的人請標記為代理，他的 Rake 會計入代理自己那區。
+    </div>
+    <table class="raw-table">
+      <thead><tr>
+        <th>暱稱 / ID</th>
+        <th style="text-align:right">Rake</th>
+        <th style="text-align:right">操作</th>
+      </tr></thead>
+      <tbody>`;
+
+  allPlayers.forEach((p, i) => {
+    const isAgent = agents[p.id] !== undefined;
+    const assignedTo = getAssignedAgent(i);
+    const rowClass = isAgent ? 'selected-agent' : assignedTo ? 'selected-player' : '';
+
+    html += `<tr id="row_${i}" class="${rowClass}">
+      <td>
+        <div class="nick-cell">${escHtml(p.nick||'-')}
+          ${isAgent ? `<span class="badge badge-agent">代理</span>` : ''}
+          ${assignedTo ? `<span class="badge badge-player">${escHtml(assignedTo)}</span>` : ''}
+        </div>
+        <div class="id-cell">${escHtml(p.id||'')}</div>
+      </td>
+      <td class="rake-cell">$${fmt(p.rake||0)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn-sm btn-agent ${isAgent?'active':''}"
+            onclick="toggleAgent(${i})">${isAgent ? '✓ 代理' : '設為代理'}</button>
+          ${!isAgent ? `<button class="btn-sm btn-assign"
+            onclick="openAssign(${i})">指定代理</button>` : ''}
+        </div>
+        <div class="assign-panel ${assigningRow===i?'open':''}" id="ap_${i}">
+          <div class="assign-title">選擇所屬代理：</div>
+          <div class="agent-pills">
+            ${agentIds.length === 0
+              ? '<span style="font-size:11px;color:var(--muted)">請先設定代理</span>'
+              : agentIds.map(aid => `
+                <div class="agent-pill ${assignedTo===aid?'selected':''}"
+                  onclick="assignPlayer(${i},'${escAttr(aid)}')">
+                  ${escHtml(agents[aid].nick||aid)}
+                </div>`).join('')
+            }
+            ${assignedTo ? `<div class="agent-pill" style="border-color:var(--red);color:var(--red)" onclick="unassignPlayer(${i})">✕ 移除</div>` : ''}
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table>`;
+
+  // 顯示目前代理數 & 確認按鈕
+  const totalAssigned = allPlayers.filter((p,i) => getAssignedAgent(i) || agents[p.id]).length;
+  html += `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+      已設定 ${agentIds.length} 位代理，${totalAssigned} 人已分配
+    </div>
+    <button class="confirm-btn" onclick="confirmAndCalc()">
+      ✅ 確認完成，開始計算退水
+    </button>`;
+
+  document.getElementById('out').innerHTML = html;
+}
+
+function toggleAgent(idx) {
+  const p = allPlayers[idx];
+  if (agents[p.id]) {
+    // 移除代理，同時移除該代理下所有玩家的指定
+    delete agents[p.id];
+    // 清除其他玩家指向此代理的指定
+    allPlayers.forEach((pp, i) => {
+      if (pp._assignedTo === p.id) delete pp._assignedTo;
+    });
+  } else {
+    agents[p.id] = { nick: p.nick, rake: p.rake };
+  }
+  assigningRow = -1;
+  renderRawTable();
+}
+
+function openAssign(idx) {
+  assigningRow = assigningRow === idx ? -1 : idx;
+  renderRawTable();
+}
+
+function assignPlayer(idx, agentId) {
+  allPlayers[idx]._assignedTo = agentId;
+  assigningRow = -1;
+  renderRawTable();
+}
+
+function unassignPlayer(idx) {
+  delete allPlayers[idx]._assignedTo;
+  assigningRow = -1;
+  renderRawTable();
+}
+
+function getAssignedAgent(idx) {
+  return allPlayers[idx]._assignedTo || null;
+}
+
+// ── STEP 3: 確認並計算 ───────────────────────────────
+function confirmAndCalc() {
+  const agentIds = Object.keys(agents);
+  if (agentIds.length === 0) { alert('請先設定至少一位代理！'); return; }
+
+  // 建立結果結構
+  const result = {};
+  agentIds.forEach(aid => {
+    result[aid] = {
+      nick: agents[aid].nick,
+      rake: agents[aid].rake,
+      players: []
+    };
+  });
+
+  // 把玩家放進對應代理
+  allPlayers.forEach((p, i) => {
+    if (agents[p.id]) return; // 代理本人跳過（已在 result 裡）
+    const assignedTo = getAssignedAgent(i);
+    if (assignedTo && result[assignedTo]) {
+      result[assignedTo].players.push({ ...p, pct: 30 });
+    }
+  });
+
+  renderResults(result);
+}
+
+// ── STEP 4: 退水結果 ────────────────────────────────
+function renderResults(result) {
+  let html = '';
+
+  Object.entries(result).forEach(([agentId, d]) => {
+    const safeAgent = safe(agentId);
+
+    // 代理自己的 rake
+    const selfRake = parseFloat(d.rake)||0;
+    // 所有線下玩家 rake 總和
+    const playersRake = d.players.reduce((s,p) => s+(parseFloat(p.rake)||0), 0);
+
+    const agentRebate = d.players.reduce((s, p) =>
+      s + (parseFloat(p.rake)||0) * (parseFloat(p.pct)||0) / 100, 0);
+
+    html += `<div class="agent-block">
+      <div class="agent-header">
+        <div>
+          <div class="agent-name">代理：${escHtml(d.nick||agentId)}</div>
+          <div class="agent-sub">
+            自身 Rake $${fmt(selfRake)}　線下 ${d.players.length} 人 / $${fmt(playersRake)}
+          </div>
+        </div>
+        <div>
+          <div class="agent-rebate-label">線下退水小計</div>
+          <div class="agent-rebate-total" id="agt_${safeAgent}">$${fmt(agentRebate)}</div>
+        </div>
+      </div>`;
+
+    if (d.players.length === 0) {
+      html += `<div style="padding:12px 14px;font-size:12px;color:var(--muted)">尚無線下玩家</div>`;
+    }
+
+    d.players.forEach((p, idx) => {
+      const rake = parseFloat(p.rake)||0;
+      const rebate = rake * (parseFloat(p.pct)||0) / 100;
+      const safeP = safe(agentId + '_' + idx);
+      html += `<div class="player-row">
+        <div class="player-info">
+          <div class="p-nick">${escHtml(p.nick||'-')}</div>
+          <div class="p-id">${escHtml(p.id||'')}</div>
+          <div class="p-rake">Rake $${fmt(rake)}</div>
+        </div>
+        <div class="pct-wrap">
+          <input class="pct-input" type="number" min="0" max="100" step="0.1"
+            value="${p.pct}"
+            oninput="updatePlayer('${escAttr(agentId)}',${idx},this.value,window._result)">
+          <span class="pct-sign">%</span>
+        </div>
+        <div class="rebate-amt" id="pamt_${safeP}">$${fmt(rebate)}</div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  // Grand total
+  const grand = Object.values(result).reduce((s, d) =>
+    s + d.players.reduce((ss, p) =>
+      ss + (parseFloat(p.rake)||0) * (parseFloat(p.pct)||0) / 100, 0), 0);
+
+  html += `<div class="grand-total">
+    <span class="gt-label">💰 全部退水總計</span>
+    <span class="gt-val" id="grandTotal">$${fmt(grand)}</span>
+  </div>
+  <button class="re-analyze-btn" onclick="renderRawTable()">← 返回重新調整分組</button>`;
+
+  window._result = result;
+  document.getElementById('out').innerHTML = html;
+}
+
+function updatePlayer(agentId, idx, val, result) {
+  if (!result || !result[agentId]) return;
+  result[agentId].players[idx].pct = parseFloat(val)||0;
+  const p = result[agentId].players[idx];
+  const rebate = (parseFloat(p.rake)||0) * p.pct / 100;
+
+  const safeP = safe(agentId + '_' + idx);
+  const el = document.getElementById('pamt_' + safeP);
+  if (el) el.textContent = `$${fmt(rebate)}`;
+
+  const agentRebate = result[agentId].players.reduce((s, pp) =>
+    s + (parseFloat(pp.rake)||0) * (parseFloat(pp.pct)||0) / 100, 0);
+  const agtEl = document.getElementById('agt_' + safe(agentId));
+  if (agtEl) agtEl.textContent = `$${fmt(agentRebate)}`;
+
+  const grand = Object.values(result).reduce((s, d) =>
+    s + d.players.reduce((ss, pp) =>
+      ss + (parseFloat(pp.rake)||0) * (parseFloat(pp.pct)||0) / 100, 0), 0);
+  const gtEl = document.getElementById('grandTotal');
+  if (gtEl) gtEl.textContent = `$${fmt(grand)}`;
+}
+
+function fmt(n) {
+  return parseFloat(n).toLocaleString('zh-TW', {minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+function safe(s) { return String(s).replace(/[^a-zA-Z0-9]/g,'_'); }
+
+loadKey();
+</script>
+</body>
+</html>
